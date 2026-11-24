@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { RefObject } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { AvatarSettings, KrathongSettings } from "@/lib/types/festival";
@@ -20,7 +21,7 @@ export type WorldCanvasProps = {
 
 type PlayerProps = {
   avatar: AvatarSettings;
-  playerRef: React.RefObject<THREE.Group | null>;
+  playerRef: RefObject<THREE.Group | null>;
   moveDirection: { x: number; z: number };
   cameraAngle: number;
   reducedMotion: boolean;
@@ -275,6 +276,10 @@ function Player({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (target instanceof HTMLElement && target.closest("input, textarea, select, [contenteditable='true']")) {
+        return;
+      }
       const key = event.key.toLowerCase();
       if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(key)) {
         event.preventDefault();
