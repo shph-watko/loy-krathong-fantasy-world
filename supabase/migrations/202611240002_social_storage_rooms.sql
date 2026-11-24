@@ -218,7 +218,7 @@ language plpgsql
 security definer
 set search_path = ''
 set row_security = off
-as $
+as $$
 declare
   current_user_id uuid := auth.uid();
   invitation public.room_invitations%rowtype;
@@ -281,7 +281,7 @@ begin
 
   return target_room.id;
 end;
-$;
+$$;
 
 revoke all on function public.join_room_by_invite(text) from public;
 grant execute on function public.join_room_by_invite(text) to authenticated;
