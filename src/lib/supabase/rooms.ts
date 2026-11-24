@@ -13,10 +13,10 @@ function getClient() {
   return client;
 }
 
-export async function createOnlineRoom(): Promise<OnlineRoom> {
+export async function createOnlineRoom(visibility: "private" | "public" = "private"): Promise<OnlineRoom> {
   const client = getClient();
   const { data, error } = await client.rpc("create_festival_room", {
-    requested_visibility: "private",
+    requested_visibility: visibility,
     requested_capacity: 8
   });
   if (error) throw error;
