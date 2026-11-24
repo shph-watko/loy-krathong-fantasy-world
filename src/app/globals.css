@@ -1544,3 +1544,215 @@ button:disabled {
     transition-duration: 0.01ms !important;
   }
 }
+
+
+.account-menu {
+  position: relative;
+  z-index: 12;
+}
+
+.account-menu > summary {
+  list-style: none;
+}
+
+.account-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.account-summary {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 9px 4px 5px;
+  border: 1px solid rgba(212, 189, 147, 0.2);
+  border-radius: 9px;
+  color: #d8ded7;
+  background: rgba(255, 255, 255, 0.035);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.account-avatar {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(214, 181, 122, 0.35);
+  border-radius: 7px;
+  color: var(--gold-bright);
+  background: rgba(214, 181, 122, 0.1);
+  font-size: 8px;
+}
+
+.account-summary-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.account-summary-copy strong {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.account-summary-copy small {
+  max-width: 125px;
+  overflow: hidden;
+  color: #819199;
+  font-size: 8px;
+  text-overflow: ellipsis;
+}
+
+.account-chevron {
+  color: #a7b3b1;
+  font-size: 14px;
+}
+
+.account-popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(300px, calc(100vw - 28px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 17px;
+  border: 1px solid rgba(214, 181, 122, 0.22);
+  border-radius: 12px;
+  background: rgba(10, 26, 39, 0.98);
+  box-shadow: 0 22px 55px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(18px);
+}
+
+.account-popover > strong {
+  color: #e8e5d9;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.account-popover p {
+  margin: 0;
+  color: #8ea0a5;
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.account-email {
+  overflow-wrap: anywhere;
+}
+
+.account-feedback {
+  padding-top: 8px;
+  border-top: 1px solid rgba(214, 181, 122, 0.13);
+  color: #d3bd91 !important;
+}
+
+.room-presence-card {
+  padding: 12px;
+  border: 1px solid rgba(121, 184, 161, 0.19);
+  border-radius: 10px;
+  background: rgba(72, 125, 111, 0.07);
+}
+
+.room-member-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  border-bottom: 1px solid rgba(205, 194, 171, 0.08);
+}
+
+.room-member-row strong {
+  flex: 1;
+  color: #d7ded7;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.room-member-row small {
+  color: #7e9690;
+  font-size: 9px;
+}
+
+.member-presence-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #82c4a4;
+  box-shadow: 0 0 0 3px rgba(130, 196, 164, 0.11);
+}
+
+.app-loading {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 13px;
+  padding: 28px;
+  text-align: center;
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(44, 82, 91, 0.3), transparent 48%),
+    var(--night);
+}
+
+.loading-emblem {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(220, 188, 129, 0.6);
+  color: var(--gold-bright);
+  background: rgba(214, 181, 122, 0.08);
+  border-radius: 12px 3px 12px 3px;
+  font: 800 17px "Manrope", sans-serif;
+}
+
+.app-loading h1 {
+  margin: 6px 0 0;
+  color: #f0e7d4;
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.app-loading p {
+  max-width: 420px;
+  margin: 0 0 8px;
+  color: #91a1a4;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.back-home-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+@media (max-width: 680px) {
+  .account-summary {
+    min-height: 34px;
+    padding-right: 7px;
+  }
+
+  .account-summary-copy {
+    display: none;
+  }
+
+  .account-avatar {
+    width: 27px;
+    height: 27px;
+  }
+
+  .account-chevron {
+    display: none;
+  }
+
+  .account-popover {
+    position: fixed;
+    top: 70px;
+    right: 10px;
+  }
+}
