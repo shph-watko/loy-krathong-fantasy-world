@@ -229,13 +229,17 @@ export default function FestivalExperience() {
       cloudAvatarLoadedForRef.current = null;
       return;
     }
-    if (cloudAvatarLoadedForRef.current === currentUserId) return;
+    if (!isReady || cloudAvatarLoadedForRef.current === currentUserId) return;
 
     let cancelled = false;
     loadCloudAvatar()
-      .then((cloudAvatar) => {
+      .then(async (cloudAvatar) => {
         if (cancelled) return;
-        if (cloudAvatar) setAvatar(cloudAvatar);
+        if (cloudAvatar) {
+          setAvatar(cloudAvatar);
+        } else {
+          await saveCloudAvatar(avatar);
+        }
         cloudAvatarLoadedForRef.current = currentUserId;
       })
       .catch((error: unknown) => {
@@ -247,7 +251,7 @@ export default function FestivalExperience() {
     return () => {
       cancelled = true;
     };
-  }, [currentUserId]);
+  }, [currentUserId, isReady]);
 
   useEffect(() => {
     if (!isReady || !currentUserId || cloudAvatarLoadedForRef.current !== currentUserId) return;
