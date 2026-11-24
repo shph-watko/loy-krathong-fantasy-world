@@ -5,9 +5,14 @@ export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
   const requestedNext = requestUrl.searchParams.get("next");
+  const candidateNext = requestedNext
+    ? new URL(requestedNext, requestUrl.origin)
+    : new URL("/", requestUrl.origin);
   const safeNext =
-    requestedNext && requestedNext.startsWith("/") && !requestedNext.startsWith("//")
-      ? new URL(requestedNext, requestUrl.origin)
+    requestedNext?.startsWith("/") &&
+    !requestedNext.startsWith("//") &&
+    candidateNext.origin === requestUrl.origin
+      ? candidateNext
       : new URL("/", requestUrl.origin);
 
   if (code) {
