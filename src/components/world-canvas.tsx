@@ -262,6 +262,104 @@ function KrathongModel({
   );
 }
 
+function NamePlate({ label }: { label: string }) {
+  const nameplate = useMemo(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 128;
+    const context = canvas.getContext("2d");
+
+    if (context) {
+      context.beginPath();
+      context.moveTo(38, 22);
+      context.lineTo(474, 22);
+      context.quadraticCurveTo(492, 22, 492, 40);
+      context.lineTo(492, 88);
+      context.quadraticCurveTo(492, 106, 474, 106);
+      context.lineTo(38, 106);
+      context.quadraticCurveTo(20, 106, 20, 88);
+      context.lineTo(20, 40);
+      context.quadraticCurveTo(20, 22, 38, 22);
+      context.closePath();
+      context.fillStyle = "rgba(7, 22, 35, 0.88)";
+      context.fill();
+      context.strokeStyle = "rgba(214, 181, 122, 0.92)";
+      context.lineWidth = 3;
+      context.stroke();
+      context.fillStyle = "#f1e3c7";
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.font = '600 35px "IBM Plex Sans Thai", sans-serif';
+      context.fillText(label.slice(0, 22), 256, 66, 420);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const sprite = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })
+    );
+    sprite.scale.set(1.6, 0.4, 1);
+    return { sprite, texture };
+  }, [label]);
+
+  useEffect(() => {
+    return () => {
+      nameplate.texture.dispose();
+      nameplate.sprite.material.dispose();
+    };
+  }, [nameplate]);
+
+  return <primitive object={nameplate.sprite} position={[0, 2.25, 0]} />;
+}
+
+function FestivalCharacter({
+  position,
+  name,
+  outfitColor,
+  skinTone,
+  hairColor
+}: {
+  position: [number, number, number];
+  name: string;
+  outfitColor: string;
+  skinTone: string;
+  hairColor: string;
+}) {
+  return (
+    <group position={position}>
+      <mesh position={[0, 0.78, 0]} castShadow>
+        <capsuleGeometry args={[0.3, 0.48, 5, 10]} />
+        <meshStandardMaterial color={outfitColor} roughness={0.78} />
+      </mesh>
+      <mesh position={[0, 1.36, 0]} castShadow>
+        <sphereGeometry args={[0.28, 16, 16]} />
+        <meshStandardMaterial color={skinTone} roughness={0.72} />
+      </mesh>
+      <mesh position={[0, 1.52, -0.04]} castShadow>
+        <sphereGeometry args={[0.29, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.58]} />
+        <meshStandardMaterial color={hairColor} roughness={0.86} />
+      </mesh>
+      <mesh position={[-0.34, 0.78, 0]} rotation={[0, 0, -0.18]} castShadow>
+        <capsuleGeometry args={[0.085, 0.43, 4, 8]} />
+        <meshStandardMaterial color={skinTone} />
+      </mesh>
+      <mesh position={[0.34, 0.78, 0]} rotation={[0, 0, 0.18]} castShadow>
+        <capsuleGeometry args={[0.085, 0.43, 4, 8]} />
+        <meshStandardMaterial color={skinTone} />
+      </mesh>
+      <mesh position={[-0.14, 0.19, 0]} castShadow>
+        <capsuleGeometry args={[0.1, 0.28, 4, 8]} />
+        <meshStandardMaterial color="#302b32" />
+      </mesh>
+      <mesh position={[0.14, 0.19, 0]} castShadow>
+        <capsuleGeometry args={[0.1, 0.28, 4, 8]} />
+        <meshStandardMaterial color="#302b32" />
+      </mesh>
+      <NamePlate label={name} />
+    </group>
+  );
+}
+
 function Player({
   avatar,
   playerRef,
@@ -345,6 +443,7 @@ function Player({
 
   return (
     <group ref={playerRef} position={[0, 0, 2.6]}>
+      <NamePlate label={avatar.displayName || "ผู้มาเยือน"} />
       <mesh position={[0, 0.82, 0]} castShadow>
         <cylinderGeometry args={[0.34, 0.42, 0.92, 12]} />
         <meshStandardMaterial color={avatar.outfitColor} roughness={0.78} />
@@ -380,6 +479,7 @@ function Player({
 function RemoteAvatar({ player }: { player: RemotePlayer }) {
   return (
     <group position={[player.x, 0, player.z]}>
+      <NamePlate label={player.displayName} />
       <mesh position={[0, 0.82, 0]} castShadow>
         <cylinderGeometry args={[0.34, 0.42, 0.92, 12]} />
         <meshStandardMaterial color={player.outfitColor} roughness={0.78} />
@@ -441,6 +541,21 @@ function WorldScene({
       <Tree position={[5.0, 0, -0.8]} scale={0.95} />
       <Tree position={[-4.3, 0, 3.2]} scale={0.72} />
       <Tree position={[4.2, 0, 3.7]} scale={0.78} />
+
+      <FestivalCharacter
+        position={[-1.8, 0, -4.45]}
+        name="ผู้ดูแลลานพิธี"
+        outfitColor="#5c7767"
+        skinTone="#d9a47f"
+        hairColor="#2b2730"
+      />
+      <FestivalCharacter
+        position={[1.8, 0, -4.45]}
+        name="ช่างจัดดอกไม้"
+        outfitColor="#87617a"
+        skinTone="#bd805e"
+        hairColor="#31272b"
+      />
 
       <mesh position={[0, 0.18, -3.5]} castShadow>
         <boxGeometry args={[5.2, 0.18, 0.8]} />
