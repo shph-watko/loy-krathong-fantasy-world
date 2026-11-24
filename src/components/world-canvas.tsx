@@ -461,7 +461,8 @@ export default function WorldCanvas(props: WorldCanvasProps) {
       dpr={dpr}
       camera={{ position: [10, 9, 13], fov: 39, near: 0.1, far: 100 }}
       gl={{
-        antialias: props.graphicsQuality !== "low',
+        antialias: props.graphicsQuality !== "low",
+        preserveDrawingBuffer: true,
         alpha: false,
         powerPreference: "high-performance"
       }}
