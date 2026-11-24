@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { AvatarSettings, KrathongSettings } from "@/lib/types/festival";
+import type { RemotePlayer } from "@/lib/supabase/room-presence";
 
 export type WorldCanvasProps = {
   avatar: AvatarSettings;
@@ -13,6 +14,8 @@ export type WorldCanvasProps = {
   hasFloated: boolean;
   reducedMotion: boolean;
   graphicsQuality: "low" | "balanced" | "high";
+  remotePlayers: RemotePlayer[];
+  onPositionChange: (position: { x: number; z: number }) => void;
 };
 
 type PlayerProps = {
@@ -21,6 +24,7 @@ type PlayerProps = {
   moveDirection: { x: number; z: number };
   cameraAngle: number;
   reducedMotion: boolean;
+  onPositionChange: (position: { x: number; z: number }) => void;
 };
 
 function WaterSurface() {
@@ -262,10 +266,12 @@ function Player({
   playerRef,
   moveDirection,
   cameraAngle,
-  reducedMotion
+  reducedMotion,
+  onPositionChange
 }: PlayerProps) {
   const pressedKeys = useRef(new Set<string>());
   const facing = useRef(0);
+  const lastPositionBroadcast = useRef(0);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -325,6 +331,11 @@ function Player({
     const desired = player.position.clone().add(cameraOffset);
     state.camera.position.lerp(desired, 1 - Math.exp(-delta * 1.45));
     state.camera.lookAt(player.position.x, 0.75, player.position.z - 1.2);
+
+    if (state.clock.elapsedTime - lastPositionBroadcast.current > 0.25) {
+      onPositionChange({ x: player.position.x, z: player.position.z });
+      lastPositionBroadcast.current = state.clock.elapsedTime;
+    }
   });
 
   return (
@@ -361,13 +372,34 @@ function Player({
   );
 }
 
+function RemoteAvatar({ player }: { player: RemotePlayer }) {
+  return (
+    <group position={[player.x, 0, player.z]}>
+      <mesh position={[0, 0.82, 0]} castShadow>
+        <cylinderGeometry args={[0.34, 0.42, 0.92, 12]} />
+        <meshStandardMaterial color={player.outfitColor} roughness={0.78} />
+      </mesh>
+      <mesh position={[0, 1.43, 0]} castShadow>
+        <sphereGeometry args={[0.31, 14, 14]} />
+        <meshStandardMaterial color="#d9a47f" roughness={0.72} />
+      </mesh>
+      <mesh position={[0, 1.6, -0.02]}>
+        <sphereGeometry args={[0.32, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.55]} />
+        <meshStandardMaterial color="#272333" roughness={0.86} />
+      </mesh>
+    </group>
+  );
+}
+
 function WorldScene({
   avatar,
   krathong,
   moveDirection,
   cameraAngle,
   hasFloated,
-  reducedMotion
+  reducedMotion,
+  remotePlayers,
+  onPositionChange
 }: WorldCanvasProps) {
   const playerRef = useRef<THREE.Group>(null);
 
@@ -440,12 +472,16 @@ function WorldScene({
         <meshBasicMaterial color="#e7d8ba" transparent opacity={0.08} />
       </mesh>
 
+      {remotePlayers.map((remote) => (
+        <RemoteAvatar key={remote.userId} player={remote} />
+      ))}
       <Player
         avatar={avatar}
         playerRef={playerRef}
         moveDirection={moveDirection}
         cameraAngle={cameraAngle}
         reducedMotion={reducedMotion}
+        onPositionChange={onPositionChange}
       />
     </>
   );
