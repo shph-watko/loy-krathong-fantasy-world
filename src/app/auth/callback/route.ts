@@ -4,6 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
+  const requestedNext = requestUrl.searchParams.get("next");
+  const safeNext =
+    requestedNext && requestedNext.startsWith("/") && !requestedNext.startsWith("//")
+      ? new URL(requestedNext, requestUrl.origin)
+      : new URL("/", requestUrl.origin);
 
   if (code) {
     const supabase = await createClient();
@@ -12,7 +17,8 @@ export async function GET(request: Request) {
       if (error) {
         return NextResponse.redirect(new URL("/?auth=error", requestUrl.origin));
       }
-      return NextResponse.redirect(new URL("/?auth=success", requestUrl.origin));
+      safeNext.searchParams.set("auth", "success");
+      return NextResponse.redirect(safeNext);
     }
   }
 
