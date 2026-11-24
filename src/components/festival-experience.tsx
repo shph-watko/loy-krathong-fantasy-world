@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import WorldCanvasLoader from "@/components/world-canvas-loader";
 import {
   AVATAR_COLORS,
@@ -76,7 +77,7 @@ function ColorChoices({
           <button
             type="button"
             className={`color-swatch ${value === color ? "is-selected" : ""}`}
-            style={{ "--swatch-color": color } as React.CSSProperties}
+            style={{ "--swatch-color": color } as CSSProperties}
             key={color}
             aria-label={`เลือกสี ${color}`}
             aria-pressed={value === color}
@@ -266,6 +267,19 @@ export default function FestivalExperience() {
       return;
     }
     setNotice("ตรวจสอบรูปแบบรหัสแล้ว แต่การเข้าห้องออนไลน์จะเปิดใช้หลังเชื่อม Supabase Realtime");
+  };
+
+  const copyInviteLink = async () => {
+    if (!navigator.clipboard) {
+      setNotice("เบราว์เซอร์นี้ไม่รองรับการคัดลอกอัตโนมัติ กรุณาคัดลอกลิงก์จากช่องข้อความ");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(roomLink);
+      setNotice("คัดลอกลิงก์แล้ว");
+    } catch {
+      setNotice("คัดลอกลิงก์ไม่สำเร็จ กรุณาคัดลอกจากช่องข้อความ");
+    }
   };
 
   const createWishAndFloat = () => {
@@ -552,7 +566,7 @@ export default function FestivalExperience() {
                 <strong className="invite-code">{inviteCode}</strong>
                 <label className="field-label" htmlFor="invite-link">ลิงก์สำหรับส่งให้เพื่อน</label>
                 <input id="invite-link" className="text-input" readOnly value={roomLink} onFocus={(event) => event.currentTarget.select()} />
-                <button className="secondary-button full-button" type="button" onClick={() => navigator.clipboard?.writeText(roomLink).then(() => setNotice("คัดลอกลิงก์แล้ว")).catch(() => setNotice("ไม่สามารถคัดลอกได้ กรุณาคัดลอกข้อความด้วยตนเอง"))}>คัดลอกลิงก์อีกครั้ง</button>
+                <button className="secondary-button full-button" type="button" onClick={copyInviteLink}>คัดลอกลิงก์อีกครั้ง</button>
               </div>
             )}
           </section>
