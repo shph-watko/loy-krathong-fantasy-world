@@ -14,15 +14,17 @@
 6. Open `http://localhost:3000`.
 
 ## Supabase setup
-1. Create a Supabase project.
-2. Copy the Project URL and Publishable Key to `.env.local`.
-3. In the SQL Editor, run migrations in filename order:
-   - `supabase/migrations/202611240001_initial_schema.sql`
-   - `supabase/migrations/202611240002_social_storage_rooms.sql`
-4. In Authentication URL Configuration, add your local callback URL:
-   - `http://localhost:3000/auth/callback`
-5. For a deployed site, add the production callback URL as well.
-6. Configure an email provider and test magic-link sign-in.
+
+This repository is connected to the Supabase project `loy-krathong-fantasy-world` (Project Ref: `czvlqmozvjpfdiwsztdx`, region: Sydney).
+
+1. Copy `.env.example` to `.env.local`. It contains this project's URL and public publishable key.
+2. The four migrations in `supabase/migrations/` have already been applied to the connected project. To provision a different project, run all four files in filename order (001 through 004) using the Supabase SQL Editor.
+3. In Supabase Authentication > URL Configuration, add `http://localhost:3000/auth/callback` to the allowed Redirect URLs.
+4. When deploying, add the matching production callback URL and set the production Site URL.
+5. Enable/configure the Email provider and test magic-link sign-in.
+6. The migrations create the private `festival-photos` Storage bucket and authorization policies for private Realtime room channels.
+
+The publishable key is designed for use in the browser and is protected by the project's Row Level Security policies. Never place a service-role or secret key in `NEXT_PUBLIC_*` variables or commit it to Git.
 
 ## Scripts
 - `npm run dev`: local development server.
