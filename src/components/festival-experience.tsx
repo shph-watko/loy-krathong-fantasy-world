@@ -1,8 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import WorldCanvasLoader from "@/components/world-canvas-loader";
+import AccountControl from "@/components/account-control";
+import type { RemotePlayer, RoomPresenceConnection } from "@/lib/supabase/room-presence";
+import { subscribeToRoomPresence } from "@/lib/supabase/room-presence";
+import {
+  createOnlineInvitation,
+  createOnlineRoom,
+  joinOnlineRoomByInvite,
+  joinPublicRoomByCode
+} from "@/lib/supabase/rooms";
 import {
   AVATAR_COLORS,
   DEFAULT_AVATAR,
@@ -148,6 +157,19 @@ export default function FestivalExperience() {
   const [isCapturing, setIsCapturing] = useState(false);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
   const [roomLink, setRoomLink] = useState("");
+  const [currentUser, setCurrentUser] = useState<{ id: string; email: string | null } | null>(null);
+  const [pendingInvite, setPendingInvite] = useState("");
+  const [onlineRoomId, setOnlineRoomId] = useState<string | null>(null);
+  const [remotePlayers, setRemotePlayers] = useState<RemotePlayer[]>([]);
+  const presenceConnectionRef = useRef<RoomPresenceConnection | null>(null);
+
+  const handleAccountChange = useCallback((user: { id: string; email: string | null } | null) => {
+    setCurrentUser(user);
+  }, []);
+
+  const publishPosition = useCallback((position: { x: number; z: number }) => {
+    presenceConnectionRef.current?.publishPosition(position);
+  }, []);
 
   useEffect(() => {
     setAvatar(readLocalValue("avatar", DEFAULT_AVATAR));
@@ -157,9 +179,15 @@ export default function FestivalExperience() {
     setSavedDesigns(readLocalValue("designs", [] as KrathongSettings[]));
     setIsReady(true);
 
-    const incomingCode = new URLSearchParams(window.location.search).get("room");
+    const parameters = new URLSearchParams(window.location.search);
+    const incomingCode = parameters.get("room");
+    const incomingInvite = parameters.get("invite");
     if (incomingCode) {
       setJoinCode(incomingCode.toUpperCase().slice(0, 6));
+      setActivePanel("friends");
+    }
+    if (incomingInvite) {
+      setPendingInvite(incomingInvite);
       setActivePanel("friends");
     }
   }, []);
@@ -183,6 +211,64 @@ export default function FestivalExperience() {
     if (!isReady) return;
     saveWishes(wishes);
   }, [wishes, isReady]);
+
+  useEffect(() => {
+    if (!pendingInvite || !currentUser) return;
+    let cancelled = false;
+
+    joinOnlineRoomByInvite(pendingInvite)
+      .then((roomId) => {
+        if (cancelled) return;
+        setOnlineRoomId(roomId);
+        setPendingInvite("");
+        setNotice("เข้าร่วมห้องออนไลน์แล้ว");
+        const url = new URL(window.location.href);
+        url.searchParams.delete("invite");
+        window.history.replaceState({}, "", url.toString());
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setPendingInvite("");
+          setNotice(error instanceof Error ? error.message : "ไม่สามารถเข้าร่วมห้องจากลิงก์นี้ได้");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pendingInvite, currentUser]);
+
+  useEffect(() => {
+    if (!onlineRoomId || !currentUser) {
+      presenceConnectionRef.current?.close();
+      presenceConnectionRef.current = null;
+      setRemotePlayers([]);
+      return;
+    }
+
+    const connection = subscribeToRoomPresence(
+      onlineRoomId,
+      {
+        id: currentUser.id,
+        displayName: avatar.displayName,
+        outfitColor: avatar.outfitColor
+      },
+      setRemotePlayers
+    );
+
+    if (!connection) {
+      setNotice("ไม่สามารถเริ่มการเชื่อมต่อแบบเรียลไทม์ได้");
+      return;
+    }
+
+    presenceConnectionRef.current = connection;
+    return () => {
+      connection.close();
+      if (presenceConnectionRef.current === connection) {
+        presenceConnectionRef.current = null;
+      }
+    };
+  }, [onlineRoomId, currentUser, avatar.displayName, avatar.outfitColor]);
 
   useEffect(() => {
     if (activePanel !== "album") return;
@@ -246,27 +332,54 @@ export default function FestivalExperience() {
   };
 
   const createInvite = async () => {
-    const code = makeInviteCode();
-    const url = new URL(window.location.href);
-    url.searchParams.set("room", code);
-    setInviteCode(code);
-    setRoomLink(url.toString());
+    if (!currentUser) {
+      const code = makeInviteCode();
+      const url = new URL(window.location.href);
+      url.searchParams.set("room", code);
+      setInviteCode(code);
+      setRoomLink(url.toString());
+      setNotice("สร้างรหัสตัวอย่างแล้ว หากต้องการห้องออนไลน์จริงให้เข้าสู่ระบบก่อน");
+      return;
+    }
 
     try {
-      await navigator.clipboard.writeText(url.toString());
-      setNotice("สร้างรหัสเชิญและคัดลอกลิงก์แล้ว");
-    } catch {
-      setNotice("สร้างรหัสเชิญแล้ว สามารถคัดลอกลิงก์จากช่องด้านล่าง");
+      const room = await createOnlineRoom();
+      const token = await createOnlineInvitation(room.id);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("room");
+      url.searchParams.set("invite", token);
+      setOnlineRoomId(room.id);
+      setInviteCode(room.code);
+      setRoomLink(url.toString());
+
+      try {
+        await navigator.clipboard.writeText(url.toString());
+        setNotice("สร้างห้องออนไลน์และคัดลอกลิงก์เชิญแล้ว");
+      } catch {
+        setNotice("สร้างห้องออนไลน์แล้ว สามารถคัดลอกลิงก์จากช่องด้านล่าง");
+      }
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "สร้างห้องออนไลน์ไม่สำเร็จ");
     }
   };
 
-  const joinRoom = () => {
+  const joinRoom = async () => {
     const normalized = joinCode.trim().toUpperCase();
     if (!/^[A-Z0-9]{6}$/.test(normalized)) {
       setNotice("กรุณากรอกรหัสห้อง 6 ตัวอักษร");
       return;
     }
-    setNotice("ตรวจสอบรูปแบบรหัสแล้ว แต่การเข้าห้องออนไลน์จะเปิดใช้หลังเชื่อม Supabase Realtime");
+    if (!currentUser) {
+      setNotice("กรุณาเข้าสู่ระบบก่อนเข้าร่วมห้องออนไลน์");
+      return;
+    }
+    try {
+      const roomId = await joinPublicRoomByCode(normalized);
+      setOnlineRoomId(roomId);
+      setNotice("เข้าร่วมห้องออนไลน์แล้ว");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "ไม่สามารถเข้าร่วมห้องได้");
+    }
   };
 
   const copyInviteLink = async () => {
@@ -556,7 +669,7 @@ export default function FestivalExperience() {
           <section className="welcome-card">
             <span className="eyebrow">INVITE YOUR FRIENDS</span>
             <h3>ร่วมค่ำคืนนี้ด้วยกัน</h3>
-            <p>สร้างลิงก์เชิญและส่งให้เพื่อน เพื่อให้เปิดหน้าเข้าร่วมด้วยรหัสห้องของคุณ</p>
+            <p>สร้างห้องส่วนตัวและลิงก์เชิญให้เพื่อน หากยังไม่เข้าสู่ระบบจะใช้ได้เฉพาะรหัสตัวอย่างในเครื่อง</p>
           </section>
           <section className="panel-section">
             <button className="primary-button full-button" type="button" onClick={createInvite}>สร้างลิงก์เชิญ</button>
@@ -583,8 +696,21 @@ export default function FestivalExperience() {
             />
             <button className="secondary-button full-button" type="button" onClick={joinRoom}>ตรวจสอบรหัส</button>
           </section>
+          {onlineRoomId && (
+            <section className="panel-section room-presence-card">
+              <div className="section-heading"><h4>สมาชิกในห้อง</h4><span>{remotePlayers.length + 1} คน</span></div>
+              <div className="room-member-row"><span className="member-presence-dot" /><strong>{avatar.displayName}</strong><small>คุณ</small></div>
+              {remotePlayers.map((player) => (
+                <div className="room-member-row" key={player.userId}>
+                  <span className="member-presence-dot" /><strong>{player.displayName}</strong><small>ออนไลน์</small>
+                </div>
+              ))}
+            </section>
+          )}
           <p className="subtle-note">
-            ขณะนี้เป็นระบบเชิญแบบตัวอย่างบนหน้าเว็บเท่านั้น การเห็นตัวละครของเพื่อนแบบเรียลไทม์จะเปิดใช้เมื่อเชื่อม Supabase Realtime และระบบยืนยันตัวตนแล้ว
+            {currentUser
+              ? "เมื่อใช้บัญชีสมาชิกและติดตั้ง SQL migrations แล้ว ระบบจะใช้ Supabase Realtime เพื่อแสดงผู้เล่นในห้องนี้"
+              : "ห้องออนไลน์ต้องเข้าสู่ระบบด้วยอีเมลและตั้งค่า Supabase ก่อน ส่วนรหัสตัวอย่างจะไม่เชื่อมผู้เล่นหลายคนจริง"}
           </p>
         </div>
       );
@@ -700,9 +826,10 @@ export default function FestivalExperience() {
           <span className="live-dot" />
           <span>โลกเทศกาลพร้อมให้สำรวจ</span>
           <span className="topbar-divider" />
-          <span className="mode-label">โหมดตัวอย่าง</span>
+          <span className="mode-label">{currentUser ? "บัญชีสมาชิก" : "โหมดผู้เยือน"}</span>
         </div>
         <div className="topbar-actions">
+          <AccountControl onUserChange={handleAccountChange} />
           <button className="topbar-button" type="button" onClick={() => setCameraAngle((angle) => angle - 0.3)} aria-label="หมุนมุมกล้องซ้าย">หมุนซ้าย</button>
           <button className="topbar-button" type="button" onClick={() => setCameraAngle((angle) => angle + 0.3)} aria-label="หมุนมุมกล้องขวา">หมุนขวา</button>
           <button className="capture-button" type="button" onClick={captureScene} disabled={isCapturing}>
@@ -746,6 +873,8 @@ export default function FestivalExperience() {
               hasFloated={hasFloated}
               reducedMotion={preferences.reducedMotion}
               graphicsQuality={preferences.graphicsQuality}
+              remotePlayers={remotePlayers}
+              onPositionChange={publishPosition}
             />
           </div>
           <div className="scene-vignette" />
