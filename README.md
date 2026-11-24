@@ -21,7 +21,7 @@ npm run dev
 1. คัดลอก `.env.example` เป็น `.env.local` แล้วตรวจค่า Project URL และ Publishable Key
 2. เพิ่ม Redirect URL `http://localhost:3000/auth/callback` ใน Supabase Authentication > URL Configuration
 3. ตั้งค่า Site URL และ Email provider ให้ตรงกับโดเมนที่ใช้งานจริง แล้วทดสอบ Magic Link
-4. Migration ทั้งสามชุดถูกติดตั้งในฐานข้อมูลของโปรเจกต์ที่เชื่อมอยู่แล้ว หากสร้างฐานข้อมูลใหม่ ให้รันไฟล์ใน `supabase/migrations/` ตามลำดับ 001, 002 และ 003
+4. Migration ทั้งสี่ชุดถูกติดตั้งในฐานข้อมูลของโปรเจกต์ที่เชื่อมอยู่แล้ว หากสร้างฐานข้อมูลใหม่ ให้รันไฟล์ใน `supabase/migrations/` ตามลำดับ 001, 002, 003 และ 004 (รวม security hardening และสิทธิ์ Data API แบบ least privilege)
 
 Publishable Key ถูกออกแบบให้ใช้ในแอปฝั่ง client ได้ โดยยังต้องใช้ RLS ควบคุมการเข้าถึงข้อมูล ห้ามนำ Service Role Key หรือ Secret Key มาใส่ใน `NEXT_PUBLIC_*` หรือ commit ลง GitHub
 
