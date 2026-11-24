@@ -243,23 +243,9 @@ for update to authenticated using (owner_id = (select auth.uid())) with check (o
 create policy "rooms_delete_owner" on public.rooms
 for delete to authenticated using (owner_id = (select auth.uid()));
 
-create policy "room_members_select_room_members" on public.room_members
-for select to authenticated using (
-  user_id = (select auth.uid())
-  or exists (
-    select 1 from public.room_members own
-    where own.room_id = room_members.room_id and own.user_id = (select auth.uid())
-  )
-);
-create policy "room_members_insert_public_room" on public.room_members
-for insert to authenticated with check (
-  user_id = (select auth.uid())
-  and exists (
-    select 1 from public.rooms r
-    where r.id = room_id and r.visibility = 'public'
-      and r.status = 'open' and r.expires_at > now()
-  )
-);
+create policy "room_members_select_own" on public.room_members
+for select to authenticated using (user_id = (select auth.uid()));
+-- Room membership must be managed by trusted server-side functions, not direct client inserts.
 create policy "room_members_delete_self_or_owner" on public.room_members
 for delete to authenticated using (
   user_id = (select auth.uid())
