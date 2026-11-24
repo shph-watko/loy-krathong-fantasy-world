@@ -36,11 +36,14 @@ The first playable version includes:
 - 3D festival scene with a temple, river, lights, flowers and krathong.
 - Avatar appearance and display-name customization.
 - Keyboard movement (W/A/S/D or arrow keys) and on-screen movement controls.
-- Krathong customization and local saved designs.
-- Wishes and local floating-ceremony state.
-- Screenshot capture saved into browser IndexedDB.
-- Local invite-code preview.
-- Optional email sign-in and Supabase room creation/invitation/presence when the migrations are applied.
+- Krathong customization with local saved designs and optional cloud backup.
+- Wishes saved locally and optionally to the authenticated user's Supabase account.
+- Screenshot capture saved into browser IndexedDB; upload to the private Supabase photo bucket is an explicit user action.
+- Guest invite-link preview, plus authenticated private-room invitation links and public room codes.
+- Optional email magic-link sign-in.
+- Avatar settings load from and synchronize to Supabase when signed in.
+- Supabase room creation/invitation, invitation joining and Realtime presence/movement when migrations and Realtime policies are applied.
+- Named festival characters and 3D nameplates in the main scene.
 
 ## Limitations
 - Local guest settings, wishes, designs and photos are stored in the current browser only.
