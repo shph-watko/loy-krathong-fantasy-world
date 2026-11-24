@@ -212,6 +212,80 @@ $$;
 revoke all on function public.create_room_invitation(uuid, integer, integer) from public;
 grant execute on function public.create_room_invitation(uuid, integer, integer) to authenticated;
 
+create or replace function public.join_room_by_invite(invite_token text)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+set row_security = off
+as $
+declare
+  current_user_id uuid := auth.uid();
+  invitation public.room_invitations%rowtype;
+  target_room public.rooms%rowtype;
+  member_total integer;
+  inserted_rows integer;
+begin
+  if current_user_id is null then
+    raise exception 'Authentication required';
+  end if;
+
+  select * into invitation
+  from public.room_invitations
+  where token_hash = encode(extensions.digest(invite_token, 'sha256'), 'hex')
+    and expires_at > now()
+    and uses < max_uses
+  for update;
+
+  if not found then
+    raise exception 'Invitation is invalid or expired';
+  end if;
+
+  -- Lock the room so concurrent joins cannot exceed the configured capacity.
+  select * into target_room
+  from public.rooms
+  where id = invitation.room_id
+    and status = 'open'
+    and expires_at > now()
+  for update;
+
+  if not found then
+    raise exception 'Room is not available';
+  end if;
+
+  if exists (
+    select 1 from public.room_members
+    where room_id = target_room.id and user_id = current_user_id
+  ) then
+    return target_room.id;
+  end if;
+
+  select count(*) into member_total
+  from public.room_members
+  where room_id = target_room.id;
+
+  if member_total >= target_room.capacity then
+    raise exception 'Room is full';
+  end if;
+
+  insert into public.room_members (room_id, user_id, role)
+  values (target_room.id, current_user_id, 'member')
+  on conflict (room_id, user_id) do nothing;
+
+  get diagnostics inserted_rows = row_count;
+  if inserted_rows > 0 then
+    update public.room_invitations
+    set uses = uses + 1
+    where id = invitation.id;
+  end if;
+
+  return target_room.id;
+end;
+$;
+
+revoke all on function public.join_room_by_invite(text) from public;
+grant execute on function public.join_room_by_invite(text) to authenticated;
+
 create or replace function public.join_room_by_code(requested_code text)
 returns uuid
 language plpgsql
