@@ -50,10 +50,14 @@ export default function AccountControl({ onUserChange }: AccountControlProps) {
 
     setBusy(true);
     setMessage("");
+    const returnTo = `${window.location.pathname}${window.location.search}`;
+    const callbackUrl = new URL("/auth/callback", window.location.origin);
+    callbackUrl.searchParams.set("next", returnTo);
+
     const { error } = await supabase.auth.signInWithOtp({
       email: normalizedEmail,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`
+        emailRedirectTo: callbackUrl.toString()
       }
     });
     setBusy(false);
