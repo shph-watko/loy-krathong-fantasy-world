@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { AvatarSettings, KrathongSettings } from "@/lib/types/festival";
 import type { RemotePlayer } from "@/lib/supabase/room-presence";
