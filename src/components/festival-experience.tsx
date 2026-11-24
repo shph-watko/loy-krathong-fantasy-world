@@ -318,8 +318,11 @@ export default function FestivalExperience() {
     );
 
     if (!connection) {
-      setNotice("ไม่สามารถเริ่มการเชื่อมต่อแบบเรียลไทม์ได้");
-      return;
+      const timeout = window.setTimeout(
+        () => setNotice("ไม่สามารถเริ่มการเชื่อมต่อแบบเรียลไทม์ได้"),
+        0
+      );
+      return () => window.clearTimeout(timeout);
     }
 
     presenceConnectionRef.current = connection;
