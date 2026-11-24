@@ -1,39 +1,56 @@
 # Loy Krathong Fantasy World
 
-โลกเทศกาลลอยกระทงออนไลน์แบบ 3D Fantasy ให้ผู้เล่นสร้างตัวละคร ออกแบบกระทง ถ่ายภาพ สำรวจสถานที่ และร่วมกิจกรรมกับเพื่อน
+โลกเทศกาลลอยกระทงออนไลน์แบบ 3D Fantasy พัฒนาด้วย Next.js, React Three Fiber และ Supabase
 
-> สถานะ: เอกสารและโครงสร้างเริ่มต้น ยังไม่มีโค้ดแอปพลิเคชัน และยังไม่ได้สร้างตารางจริงใน Supabase
+## เริ่มต้นใช้งาน
 
-## เป้าหมายหลัก
+ต้องใช้ Node.js 20.9 ขึ้นไป
 
-- โลก 3D ธีมลอยกระทงแฟนตาซี รองรับมือถือ แท็บเล็ต และคอมพิวเตอร์
-- สร้างตัวละคร ตั้งชื่อ แต่งตัว และปรับแต่งรูปลักษณ์
-- ออกแบบกระทง เลือกวัสดุ สี ลวดลาย และของตกแต่ง
-- ถ่ายภาพเดี่ยว คู่ และกลุ่ม พร้อมอัลบั้มผลงาน
-- เชิญเพื่อนด้วยลิงก์ รหัสห้อง หรือ QR Code
-- ร่วมพิธีลอยกระทง ปล่อยโคมลอย เขียนคำอธิษฐาน และชมการแสดง
-- สำรวจสถานที่ เช่น วัดแฟนตาซี สะพานจันทร์ สวนบัว และตลาดงานวัด
-- ภารกิจ ของสะสม ความสำเร็จ และกิจกรรมตามเทศกาล
+```bash
+npm install
+cp .env.example .env.local
+npm run dev
+```
 
-## เทคโนโลยีที่วางแผนไว้
+เปิด `http://localhost:3000` เพื่อเข้าโลกเทศกาล โหมดผู้เยือนสามารถทดลองฉาก 3D และเครื่องมือสร้างสรรค์ได้โดยไม่ต้องตั้งค่า Supabase
 
-- Next.js, React และ TypeScript
-- Three.js / React Three Fiber สำหรับฉาก 3D
-- Supabase สำหรับ PostgreSQL, Authentication, Realtime และ Storage
-- IndexedDB สำหรับข้อมูลในเครื่อง
-- CDN สำหรับโมเดล 3D ภาพ และเสียง
+## เชื่อมต่อ Supabase
 
-## เอกสารโครงการ
+1. สร้าง Supabase project
+2. นำ Project URL และ Publishable Key ใส่ใน `.env.local`
+3. รันไฟล์ SQL ตามลำดับใน Supabase SQL Editor:
+   - `supabase/migrations/202611240001_initial_schema.sql`
+   - `supabase/migrations/202611240002_social_storage_rooms.sql`
+4. เพิ่ม Redirect URL `http://localhost:3000/auth/callback` ใน Supabase Authentication
+5. ตั้งค่า Email provider แล้วทดลองเข้าสู่ระบบด้วย Magic Link
 
-เอกสารการวางแผนจะอยู่ในโฟลเดอร์ `docs/` ได้แก่ ภาพรวมโครงการ ข้อกำหนด แผนผังหน้าเว็บ UI/UX การออกแบบฐานข้อมูล ระบบ Multiplayer รายการ 3D assets ความปลอดภัย การ Deploy และ Roadmap
+## ฟังก์ชันที่มีในรุ่นเริ่มต้น
 
-## ข้อควรระวัง
+- ฉากโลก 3D พร้อมวัด แม่น้ำ โคม แสงสะท้อน ต้นไม้ และดอกบัว
+- เดินด้วย W/A/S/D, ปุ่มลูกศร หรือปุ่มสัมผัสบนหน้าจอ
+- ปรับชื่อ สีผิว สีผม และสีชุดของตัวละคร
+- ออกแบบกระทงและบันทึกแบบกระทงในเครื่อง
+- เขียนคำอธิษฐานและเพิ่มกระทงลงในฉากพิธี
+- ถ่ายภาพฉากและบันทึกไว้ใน IndexedDB
+- สร้างรหัส/ลิงก์เชิญตัวอย่างในโหมดผู้เยือน
+- เข้าสู่ระบบผ่านอีเมลและใช้ RPC สำหรับห้องออนไลน์เมื่อ Supabase พร้อม
+- เตรียม Realtime presence/broadcast เพื่อแสดงผู้เล่นในห้องเดียวกัน
+- Migration ฐานข้อมูลพร้อม Row Level Security และ private photo bucket
 
-- ห้าม commit ไฟล์ `.env` หรือ secret keys ลง Git
-- ต้องกำหนด Row Level Security (RLS) ใน Supabase ก่อนเก็บข้อมูลผู้ใช้จริง
-- ให้ผู้ใช้เลือกก่อนอัปโหลดภาพถ่ายขึ้นระบบ
-- ต้องทดสอบสิทธิ์การเข้าถึงห้อง รูปภาพ และข้อมูลโปรไฟล์ก่อนเปิดใช้งานจริง
+## คำสั่งตรวจสอบ
 
-## สถานะปัจจุบัน
+```bash
+npm run lint
+npm run typecheck
+npm run build
+```
 
-Repository นี้เป็นจุดเริ่มต้นของโครงการ ยังไม่มีระบบที่พร้อมให้ผู้เล่นใช้งานจริง
+## เอกสาร
+
+ดู [Local Development](./docs/LOCAL-DEVELOPMENT.md), [Product Requirements](./docs/REQUIREMENTS.md), [Database Design](./docs/DATABASE-DESIGN.md) และ [Implementation Roadmap](./docs/IMPLEMENTATION-ROADMAP.md)
+
+## ข้อจำกัดของรุ่นนี้
+
+นี่คือ first playable build ไม่ใช่ระบบผลิตจริงที่สมบูรณ์ทุกเมนู ระบบผู้เล่นหลายคนต้องมี Supabase project, migrations, Auth และ Realtime configuration ที่พร้อมใช้งานก่อน ส่วนกล้องจริง การจัดการเพื่อน/รายงาน เนื้อหาเทศกาลทั้งหมด และฉากอื่น ๆ จะพัฒนาต่อเป็นลำดับ
+
+ห้ามนำ Service Role Key ไปใส่ในตัวแปร `NEXT_PUBLIC_*` หรือส่งไปยังโค้ดฝั่งเบราว์เซอร์
