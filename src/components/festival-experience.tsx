@@ -148,6 +148,7 @@ export default function FestivalExperience() {
   const [newWish, setNewWish] = useState("");
   const [wishVisibility, setWishVisibility] = useState<"private" | "public">("private");
   const [inviteCode, setInviteCode] = useState("");
+  const [roomVisibility, setRoomVisibility] = useState<"private" | "public">("private");
   const [joinCode, setJoinCode] = useState("");
   const [cameraAngle, setCameraAngle] = useState(0.42);
   const [moveDirection, setMoveDirection] = useState({ x: 0, z: 0 });
@@ -343,7 +344,7 @@ export default function FestivalExperience() {
     }
 
     try {
-      const room = await createOnlineRoom();
+      const room = await createOnlineRoom(roomVisibility);
       const token = await createOnlineInvitation(room.id);
       const url = new URL(window.location.href);
       url.searchParams.delete("room");
@@ -669,13 +670,23 @@ export default function FestivalExperience() {
           <section className="welcome-card">
             <span className="eyebrow">INVITE YOUR FRIENDS</span>
             <h3>ร่วมค่ำคืนนี้ด้วยกัน</h3>
-            <p>สร้างห้องส่วนตัวและลิงก์เชิญให้เพื่อน หากยังไม่เข้าสู่ระบบจะใช้ได้เฉพาะรหัสตัวอย่างในเครื่อง</p>
+            <p>เลือกห้องส่วนตัวที่ใช้ลิงก์เชิญ หรือห้องสาธารณะที่เพื่อนเข้าร่วมได้ด้วยรหัสห้อง</p>
           </section>
           <section className="panel-section">
-            <button className="primary-button full-button" type="button" onClick={createInvite}>สร้างลิงก์เชิญ</button>
+            <label className="field-label" htmlFor="room-visibility">ประเภทห้อง</label>
+            <select
+              id="room-visibility"
+              className="text-input"
+              value={roomVisibility}
+              onChange={(event) => setRoomVisibility(event.target.value as "private" | "public")}
+            >
+              <option value="private">ส่วนตัว — เข้าร่วมด้วยลิงก์เชิญ</option>
+              <option value="public">สาธารณะ — เข้าร่วมด้วยรหัสห้องได้</option>
+            </select>
+            <button className="primary-button full-button" type="button" onClick={createInvite}>สร้างห้องและลิงก์เชิญ</button>
             {inviteCode && (
               <div className="invite-result">
-                <span className="field-label">รหัสเชิญ</span>
+                <span className="field-label">รหัสห้อง {roomVisibility === "public" ? "(ใช้เข้าร่วมได้)" : "(ใช้ร่วมกับลิงก์เชิญ)"}</span>
                 <strong className="invite-code">{inviteCode}</strong>
                 <label className="field-label" htmlFor="invite-link">ลิงก์สำหรับส่งให้เพื่อน</label>
                 <input id="invite-link" className="text-input" readOnly value={roomLink} onFocus={(event) => event.currentTarget.select()} />
