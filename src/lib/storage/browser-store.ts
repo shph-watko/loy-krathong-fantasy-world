@@ -10,7 +10,8 @@ const STORAGE_KEYS = {
   avatar: "lkfw:avatar:v1",
   krathong: "lkfw:krathong:v1",
   preferences: "lkfw:preferences:v1",
-  wishes: "lkfw:wishes:v1"
+  wishes: "lkfw:wishes:v1",
+  designs: "lkfw:designs:v1"
 } as const;
 
 const DATABASE_NAME = "loy-krathong-fantasy-world";
