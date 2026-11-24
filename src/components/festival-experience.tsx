@@ -1,0 +1,777 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import WorldCanvasLoader from "@/components/world-canvas-loader";
+import {
+  AVATAR_COLORS,
+  DEFAULT_AVATAR,
+  DEFAULT_KRATHONG,
+  DEFAULT_PREFERENCES,
+  FLOWER_COLORS,
+  SKIN_TONES
+} from "@/lib/types/festival";
+import type {
+  ActivePanel,
+  AvatarSettings,
+  FestivalPhoto,
+  FestivalPreferences,
+  FestivalWish,
+  KrathongSettings
+} from "@/lib/types/festival";
+import {
+  deletePhoto,
+  listPhotos,
+  readLocalValue,
+  saveAvatar,
+  saveKrathong,
+  savePhoto,
+  savePreferences,
+  saveWishes,
+  writeLocalValue
+} from "@/lib/storage/browser-store";
+
+const NAV_ITEMS: { id: ActivePanel; title: string; subtitle: string }[] = [
+  { id: "world", title: "โลกเทศกาล", subtitle: "สำรวจพื้นที่" },
+  { id: "avatar", title: "ตัวละครของฉัน", subtitle: "รูปลักษณ์และชุด" },
+  { id: "krathong", title: "ออกแบบกระทง", subtitle: "สร้างผลงานของคุณ" },
+  { id: "ceremony", title: "พิธีลอยกระทง", subtitle: "คำอธิษฐานและสายน้ำ" },
+  { id: "friends", title: "เชิญเพื่อน", subtitle: "ห้องและรหัสเชิญ" },
+  { id: "album", title: "อัลบั้มภาพ", subtitle: "ภาพที่บันทึกไว้" },
+  { id: "settings", title: "การตั้งค่า", subtitle: "ภาพและการเคลื่อนไหว" }
+];
+
+const PANEL_TITLES: Record<ActivePanel, string> = {
+  world: "พื้นที่จัดงาน",
+  avatar: "ปรับแต่งตัวละคร",
+  krathong: "ห้องออกแบบกระทง",
+  ceremony: "พิธีลอยกระทง",
+  friends: "เชิญเพื่อนเข้าร่วม",
+  album: "อัลบั้มภาพของฉัน",
+  settings: "การตั้งค่าประสบการณ์"
+};
+
+function makeInviteCode(): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const values = new Uint32Array(6);
+  crypto.getRandomValues(values);
+  return Array.from(values, (value) => alphabet[value % alphabet.length]).join("");
+}
+
+function ColorChoices({
+  colors,
+  value,
+  onChange,
+  label
+}: {
+  colors: string[];
+  value: string;
+  onChange: (color: string) => void;
+  label: string;
+}) {
+  return (
+    <div className="field-block">
+      <span className="field-label">{label}</span>
+      <div className="color-options" role="group" aria-label={label}>
+        {colors.map((color) => (
+          <button
+            type="button"
+            className={`color-swatch ${value === color ? "is-selected" : ""}`}
+            style={{ "--swatch-color": color } as React.CSSProperties}
+            key={color}
+            aria-label={`เลือกสี ${color}`}
+            aria-pressed={value === color}
+            onClick={() => onChange(color)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function NumberControl({
+  label,
+  value,
+  min,
+  max,
+  onChange
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="number-control">
+      <span>{label}</span>
+      <div className="stepper">
+        <button
+          type="button"
+          aria-label={`ลด${label}`}
+          disabled={value <= min}
+          onClick={() => onChange(Math.max(min, value - 1))}
+        >
+          −
+        </button>
+        <strong>{value}</strong>
+        <button
+          type="button"
+          aria-label={`เพิ่ม${label}`}
+          disabled={value >= max}
+          onClick={() => onChange(Math.min(max, value + 1))}
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default function FestivalExperience() {
+  const [activePanel, setActivePanel] = useState<ActivePanel>("world");
+  const [avatar, setAvatar] = useState<AvatarSettings>(DEFAULT_AVATAR);
+  const [krathong, setKrathong] = useState<KrathongSettings>(DEFAULT_KRATHONG);
+  const [preferences, setPreferences] = useState<FestivalPreferences>(DEFAULT_PREFERENCES);
+  const [wishes, setWishes] = useState<FestivalWish[]>([]);
+  const [photos, setPhotos] = useState<FestivalPhoto[]>([]);
+  const [savedDesigns, setSavedDesigns] = useState<KrathongSettings[]>([]);
+  const [newWish, setNewWish] = useState("");
+  const [wishVisibility, setWishVisibility] = useState<"private" | "public">("private");
+  const [inviteCode, setInviteCode] = useState("");
+  const [joinCode, setJoinCode] = useState("");
+  const [cameraAngle, setCameraAngle] = useState(0.42);
+  const [moveDirection, setMoveDirection] = useState({ x: 0, z: 0 });
+  const [hasFloated, setHasFloated] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [isReady, setIsReady] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
+  const [roomLink, setRoomLink] = useState("");
+
+  useEffect(() => {
+    setAvatar(readLocalValue("avatar", DEFAULT_AVATAR));
+    setKrathong(readLocalValue("krathong", DEFAULT_KRATHONG));
+    setPreferences(readLocalValue("preferences", DEFAULT_PREFERENCES));
+    setWishes(readLocalValue("wishes", [] as FestivalWish[]));
+    setSavedDesigns(readLocalValue("designs", [] as KrathongSettings[]));
+    setIsReady(true);
+
+    const incomingCode = new URLSearchParams(window.location.search).get("room");
+    if (incomingCode) {
+      setJoinCode(incomingCode.toUpperCase().slice(0, 6));
+      setActivePanel("friends");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isReady) return;
+    saveAvatar(avatar);
+  }, [avatar, isReady]);
+
+  useEffect(() => {
+    if (!isReady) return;
+    saveKrathong(krathong);
+  }, [krathong, isReady]);
+
+  useEffect(() => {
+    if (!isReady) return;
+    savePreferences(preferences);
+  }, [preferences, isReady]);
+
+  useEffect(() => {
+    if (!isReady) return;
+    saveWishes(wishes);
+  }, [wishes, isReady]);
+
+  useEffect(() => {
+    if (activePanel !== "album") return;
+    let cancelled = false;
+
+    listPhotos()
+      .then((stored) => {
+        if (!cancelled) setPhotos(stored);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setNotice(error instanceof Error ? error.message : "ไม่สามารถเปิดอัลบั้มภาพได้");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activePanel]);
+
+  useEffect(() => {
+    const nextUrls: Record<string, string> = {};
+    photos.forEach((photo) => {
+      nextUrls[photo.id] = URL.createObjectURL(photo.blob);
+    });
+    setPhotoUrls(nextUrls);
+
+    return () => {
+      Object.values(nextUrls).forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [photos]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timeout = window.setTimeout(() => setNotice(""), 4200);
+    return () => window.clearTimeout(timeout);
+  }, [notice]);
+
+  const photoCountLabel = useMemo(
+    () => `${photos.length} ภาพที่บันทึกในอุปกรณ์นี้`,
+    [photos.length]
+  );
+
+  const updateAvatar = <K extends keyof AvatarSettings>(key: K, value: AvatarSettings[K]) => {
+    setAvatar((current) => ({ ...current, [key]: value }));
+  };
+
+  const updateKrathong = <K extends keyof KrathongSettings>(
+    key: K,
+    value: KrathongSettings[K]
+  ) => {
+    setKrathong((current) => ({ ...current, [key]: value }));
+  };
+
+  const saveCurrentDesign = () => {
+    const nextDesigns = [
+      krathong,
+      ...savedDesigns.filter((item) => item.designName !== krathong.designName)
+    ].slice(0, 12);
+    setSavedDesigns(nextDesigns);
+    writeLocalValue("designs", nextDesigns);
+    setNotice("บันทึกแบบกระทงไว้ในอุปกรณ์นี้แล้ว");
+  };
+
+  const createInvite = async () => {
+    const code = makeInviteCode();
+    const url = new URL(window.location.href);
+    url.searchParams.set("room", code);
+    setInviteCode(code);
+    setRoomLink(url.toString());
+
+    try {
+      await navigator.clipboard.writeText(url.toString());
+      setNotice("สร้างรหัสเชิญและคัดลอกลิงก์แล้ว");
+    } catch {
+      setNotice("สร้างรหัสเชิญแล้ว สามารถคัดลอกลิงก์จากช่องด้านล่าง");
+    }
+  };
+
+  const joinRoom = () => {
+    const normalized = joinCode.trim().toUpperCase();
+    if (!/^[A-Z0-9]{6}$/.test(normalized)) {
+      setNotice("กรุณากรอกรหัสห้อง 6 ตัวอักษร");
+      return;
+    }
+    setNotice("ตรวจสอบรูปแบบรหัสแล้ว แต่การเข้าห้องออนไลน์จะเปิดใช้หลังเชื่อม Supabase Realtime");
+  };
+
+  const createWishAndFloat = () => {
+    const body = newWish.trim();
+    if (!body) {
+      setNotice("กรุณาเขียนคำอธิษฐานก่อนเริ่มพิธี");
+      return;
+    }
+    if (body.length > 240) {
+      setNotice("คำอธิษฐานต้องไม่เกิน 240 ตัวอักษร");
+      return;
+    }
+
+    const wish: FestivalWish = {
+      id: crypto.randomUUID(),
+      body,
+      visibility: wishVisibility,
+      createdAt: new Date().toISOString()
+    };
+    setWishes((current) => [wish, ...current].slice(0, 50));
+    setNewWish("");
+    setHasFloated(true);
+    setNotice("บันทึกคำอธิษฐานและเพิ่มกระทงลงในฉากแล้ว");
+  };
+
+  const captureScene = () => {
+    const canvas = document.querySelector<HTMLCanvasElement>(".scene-canvas canvas");
+    if (!canvas) {
+      setNotice("ยังไม่พบฉากสำหรับถ่ายภาพ");
+      return;
+    }
+
+    setIsCapturing(true);
+    canvas.toBlob(
+      async (blob) => {
+        try {
+          if (!blob) throw new Error("ไม่สามารถสร้างไฟล์ภาพได้");
+          await savePhoto(blob);
+          const stored = await listPhotos();
+          setPhotos(stored);
+          setNotice("บันทึกภาพลงอัลบั้มในอุปกรณ์นี้แล้ว");
+        } catch (error) {
+          setNotice(error instanceof Error ? error.message : "บันทึกภาพไม่สำเร็จ");
+        } finally {
+          setIsCapturing(false);
+        }
+      },
+      "image/jpeg",
+      0.9
+    );
+  };
+
+  const removePhoto = async (id: string) => {
+    try {
+      await deletePhoto(id);
+      setPhotos((current) => current.filter((photo) => photo.id !== id));
+      setNotice("ลบภาพออกจากอัลบั้มแล้ว");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "ลบภาพไม่สำเร็จ");
+    }
+  };
+
+  const changePanel = (panel: ActivePanel) => {
+    setActivePanel(panel);
+    setNotice("");
+  };
+
+  const panelContent = () => {
+    if (activePanel === "world") {
+      return (
+        <div className="panel-stack">
+          <section className="welcome-card">
+            <span className="eyebrow">FESTIVAL WORLD</span>
+            <h3>ค่ำคืนริมสายน้ำ</h3>
+            <p>
+              เดินสำรวจลานพิธี ชมศาลาแสงจันทร์ และเตรียมกระทงของคุณก่อนร่วมพิธีริมแม่น้ำ
+            </p>
+            <div className="welcome-stats">
+              <div><strong>01</strong><span>พื้นที่หลัก</span></div>
+              <div><strong>3D</strong><span>โลกสามมิติ</span></div>
+              <div><strong>24/7</strong><span>เข้าชมได้</span></div>
+            </div>
+          </section>
+          <section className="panel-section">
+            <div className="section-heading">
+              <h4>สถานที่แนะนำ</h4>
+              <span>จุดสำรวจ</span>
+            </div>
+            <button className="location-row" type="button" onClick={() => setNotice("คุณอยู่ในบริเวณลานพิธีหลัก")}>
+              <span className="location-index">01</span>
+              <span><strong>ลานพิธีริมแม่น้ำ</strong><small>จุดเริ่มต้นของเทศกาล</small></span>
+              <span className="row-arrow">›</span>
+            </button>
+            <button className="location-row" type="button" onClick={() => setNotice("สะพานจันทร์จะเพิ่มในฉากถัดไป")}>
+              <span className="location-index">02</span>
+              <span><strong>สะพานจันทร์</strong><small>จุดชมแสงสะท้อนผิวน้ำ</small></span>
+              <span className="row-arrow">›</span>
+            </button>
+            <button className="location-row" type="button" onClick={() => setNotice("สวนบัวจะเพิ่มในฉากถัดไป")}>
+              <span className="location-index">03</span>
+              <span><strong>สวนบัว</strong><small>มุมพักผ่อนใต้แสงโคม</small></span>
+              <span className="row-arrow">›</span>
+            </button>
+          </section>
+          <section className="tip-card">
+            <span className="tip-mark">TIP</span>
+            <p>ใช้ปุ่มลูกศรบนหน้าจอ หรือปุ่ม W A S D เพื่อเคลื่อนที่ในฉาก</p>
+          </section>
+        </div>
+      );
+    }
+
+    if (activePanel === "avatar") {
+      return (
+        <div className="panel-stack">
+          <div className="avatar-preview">
+            <div className="avatar-preview-head" style={{ background: avatar.skinTone }}>
+              <span style={{ background: avatar.hairColor }} />
+            </div>
+            <div className="avatar-preview-body" style={{ background: avatar.outfitColor }} />
+            <strong>{avatar.displayName || "ผู้มาเยือน"}</strong>
+            <small>ตัวละครของคุณ</small>
+          </div>
+          <section className="panel-section">
+            <label className="field-label" htmlFor="avatar-name">ชื่อตัวละคร</label>
+            <input
+              id="avatar-name"
+              className="text-input"
+              value={avatar.displayName}
+              maxLength={24}
+              onChange={(event) => updateAvatar("displayName", event.target.value)}
+              placeholder="ตั้งชื่อตัวละคร"
+            />
+            <p className="field-hint">ชื่อแสดงได้สูงสุด 24 ตัวอักษร</p>
+          </section>
+          <ColorChoices
+            label="สีชุด"
+            colors={AVATAR_COLORS}
+            value={avatar.outfitColor}
+            onChange={(value) => updateAvatar("outfitColor", value)}
+          />
+          <ColorChoices
+            label="สีผิว"
+            colors={SKIN_TONES}
+            value={avatar.skinTone}
+            onChange={(value) => updateAvatar("skinTone", value)}
+          />
+          <div className="field-block">
+            <label className="field-label" htmlFor="hair-color">สีผม</label>
+            <div className="color-input-row">
+              <input
+                id="hair-color"
+                type="color"
+                value={avatar.hairColor}
+                onChange={(event) => updateAvatar("hairColor", event.target.value)}
+              />
+              <span>{avatar.hairColor.toUpperCase()}</span>
+            </div>
+          </div>
+          <p className="subtle-note">การปรับแต่งจะบันทึกไว้ในอุปกรณ์นี้โดยอัตโนมัติ</p>
+        </div>
+      );
+    }
+
+    if (activePanel === "krathong") {
+      return (
+        <div className="panel-stack">
+          <section className="krathong-preview">
+            <div className="krathong-preview-bowl" style={{ background: krathong.baseColor }}>
+              <div className="krathong-preview-flowers" style={{ color: krathong.flowerColor }}>● ● ●</div>
+              <span className="krathong-preview-candle" />
+            </div>
+            <small>ตัวอย่างแบบกระทงปัจจุบัน</small>
+          </section>
+          <section className="panel-section">
+            <label className="field-label" htmlFor="design-name">ชื่อผลงาน</label>
+            <input
+              id="design-name"
+              className="text-input"
+              maxLength={48}
+              value={krathong.designName}
+              onChange={(event) => updateKrathong("designName", event.target.value)}
+            />
+          </section>
+          <ColorChoices
+            label="สีฐานกระทง"
+            colors={["#a66a3f", "#c4a46a", "#456e5b", "#72516d", "#4d6c82", "#8c4b43"]}
+            value={krathong.baseColor}
+            onChange={(value) => updateKrathong("baseColor", value)}
+          />
+          <ColorChoices
+            label="สีดอกไม้"
+            colors={FLOWER_COLORS}
+            value={krathong.flowerColor}
+            onChange={(value) => updateKrathong("flowerColor", value)}
+          />
+          <section className="panel-section control-list">
+            <NumberControl label="จำนวนดอกไม้" value={krathong.flowerCount} min={4} max={12} onChange={(value) => updateKrathong("flowerCount", value)} />
+            <NumberControl label="จำนวนเทียน" value={krathong.candleCount} min={0} max={3} onChange={(value) => updateKrathong("candleCount", value)} />
+            <NumberControl label="จำนวนธูป" value={krathong.incenseCount} min={0} max={5} onChange={(value) => updateKrathong("incenseCount", value)} />
+          </section>
+          <button className="primary-button full-button" type="button" onClick={saveCurrentDesign}>บันทึกแบบกระทง</button>
+          {savedDesigns.length > 0 && (
+            <section className="panel-section">
+              <div className="section-heading"><h4>แบบที่บันทึกไว้</h4><span>{savedDesigns.length} แบบ</span></div>
+              {savedDesigns.map((design) => (
+                <button
+                  className="saved-design-row"
+                  key={design.designName}
+                  type="button"
+                  onClick={() => setKrathong(design)}
+                >
+                  <span className="saved-design-swatch" style={{ background: design.baseColor }} />
+                  <span>{design.designName}</span>
+                  <span className="row-arrow">›</span>
+                </button>
+              ))}
+            </section>
+          )}
+        </div>
+      );
+    }
+
+    if (activePanel === "ceremony") {
+      return (
+        <div className="panel-stack">
+          <section className="ceremony-card">
+            <span className="eyebrow">FLOATING CEREMONY</span>
+            <h3>ส่งความปรารถนาดีไปกับสายน้ำ</h3>
+            <p>เขียนคำอธิษฐานของคุณ แล้วนำกระทงที่ออกแบบไว้ลงลอยในแม่น้ำ</p>
+            <div className="ceremony-indicator"><span /> พื้นที่ประกอบพิธีพร้อมใช้งานในโหมดตัวอย่าง</div>
+          </section>
+          <section className="panel-section">
+            <label className="field-label" htmlFor="wish-text">คำอธิษฐาน</label>
+            <textarea
+              id="wish-text"
+              className="text-input text-area"
+              value={newWish}
+              maxLength={240}
+              onChange={(event) => setNewWish(event.target.value)}
+              placeholder="เขียนความปรารถนาของคุณ..."
+            />
+            <div className="textarea-footer"><span>บันทึกในอุปกรณ์นี้</span><span>{newWish.length}/240</span></div>
+            <label className="field-label" htmlFor="wish-visibility">การมองเห็น</label>
+            <select
+              id="wish-visibility"
+              className="text-input"
+              value={wishVisibility}
+              onChange={(event) => setWishVisibility(event.target.value as "private" | "public")}
+            >
+              <option value="private">ส่วนตัว</option>
+              <option value="public">สาธารณะในอัลบั้มนี้</option>
+            </select>
+            <button className="primary-button full-button" type="button" onClick={createWishAndFloat}>ลอยกระทงของฉัน</button>
+          </section>
+          <section className="panel-section">
+            <div className="section-heading"><h4>คำอธิษฐานที่บันทึกไว้</h4><span>{wishes.length} รายการ</span></div>
+            {wishes.length === 0 ? (
+              <p className="empty-message">ยังไม่มีคำอธิษฐาน เริ่มเขียนข้อความแรกของคุณได้ที่ด้านบน</p>
+            ) : wishes.slice(0, 5).map((wish) => (
+              <article className="wish-row" key={wish.id}>
+                <p>{wish.body}</p>
+                <small>{wish.visibility === "private" ? "ส่วนตัว" : "สาธารณะ"} · {new Date(wish.createdAt).toLocaleDateString("th-TH")}</small>
+              </article>
+            ))}
+          </section>
+        </div>
+      );
+    }
+
+    if (activePanel === "friends") {
+      return (
+        <div className="panel-stack">
+          <section className="welcome-card">
+            <span className="eyebrow">INVITE YOUR FRIENDS</span>
+            <h3>ร่วมค่ำคืนนี้ด้วยกัน</h3>
+            <p>สร้างลิงก์เชิญและส่งให้เพื่อน เพื่อให้เปิดหน้าเข้าร่วมด้วยรหัสห้องของคุณ</p>
+          </section>
+          <section className="panel-section">
+            <button className="primary-button full-button" type="button" onClick={createInvite}>สร้างลิงก์เชิญ</button>
+            {inviteCode && (
+              <div className="invite-result">
+                <span className="field-label">รหัสเชิญ</span>
+                <strong className="invite-code">{inviteCode}</strong>
+                <label className="field-label" htmlFor="invite-link">ลิงก์สำหรับส่งให้เพื่อน</label>
+                <input id="invite-link" className="text-input" readOnly value={roomLink} onFocus={(event) => event.currentTarget.select()} />
+                <button className="secondary-button full-button" type="button" onClick={() => navigator.clipboard?.writeText(roomLink).then(() => setNotice("คัดลอกลิงก์แล้ว")).catch(() => setNotice("ไม่สามารถคัดลอกได้ กรุณาคัดลอกข้อความด้วยตนเอง"))}>คัดลอกลิงก์อีกครั้ง</button>
+              </div>
+            )}
+          </section>
+          <section className="panel-section">
+            <h4>เข้าร่วมด้วยรหัส</h4>
+            <label className="field-label" htmlFor="join-code">รหัสห้อง 6 ตัวอักษร</label>
+            <input
+              id="join-code"
+              className="text-input invite-input"
+              value={joinCode}
+              maxLength={6}
+              onChange={(event) => setJoinCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
+              placeholder="เช่น A7K2Q9"
+            />
+            <button className="secondary-button full-button" type="button" onClick={joinRoom}>ตรวจสอบรหัส</button>
+          </section>
+          <p className="subtle-note">
+            ขณะนี้เป็นระบบเชิญแบบตัวอย่างบนหน้าเว็บเท่านั้น การเห็นตัวละครของเพื่อนแบบเรียลไทม์จะเปิดใช้เมื่อเชื่อม Supabase Realtime และระบบยืนยันตัวตนแล้ว
+          </p>
+        </div>
+      );
+    }
+
+    if (activePanel === "album") {
+      return (
+        <div className="panel-stack">
+          <section className="album-summary">
+            <span className="eyebrow">MY ALBUM</span>
+            <h3>{photoCountLabel}</h3>
+            <p>ภาพจะถูกเก็บไว้ในพื้นที่จัดเก็บภายในเบราว์เซอร์นี้ ไม่ได้อัปโหลดขึ้นเซิร์ฟเวอร์</p>
+            <button className="primary-button full-button" type="button" onClick={captureScene} disabled={isCapturing}>
+              {isCapturing ? "กำลังบันทึกภาพ..." : "ถ่ายภาพฉากปัจจุบัน"}
+            </button>
+          </section>
+          {photos.length === 0 ? (
+            <div className="empty-album">
+              <div className="empty-album-frame" />
+              <strong>ยังไม่มีภาพในอัลบั้ม</strong>
+              <p>กดถ่ายภาพเพื่อเก็บบรรยากาศจากโลกเทศกาล</p>
+            </div>
+          ) : (
+            <div className="photo-grid">
+              {photos.map((photo) => (
+                <article className="photo-card" key={photo.id}>
+                  {photoUrls[photo.id] && <img src={photoUrls[photo.id]} alt="ภาพจากโลกเทศกาลลอยกระทง" />}
+                  <div className="photo-card-footer">
+                    <span>{new Date(photo.createdAt).toLocaleDateString("th-TH")}</span>
+                    <button type="button" onClick={() => removePhoto(photo.id)} aria-label="ลบภาพนี้">ลบ</button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="panel-stack">
+        <section className="panel-section">
+          <h4>คุณภาพกราฟิก</h4>
+          <p className="field-hint">เลือกคุณภาพที่เหมาะกับอุปกรณ์ของคุณ</p>
+          <div className="segmented-control">
+            {(["low", "balanced", "high"] as const).map((quality) => (
+              <button
+                type="button"
+                className={preferences.graphicsQuality === quality ? "is-active" : ""}
+                key={quality}
+                onClick={() => setPreferences((current) => ({ ...current, graphicsQuality: quality }))}
+              >
+                {quality === "low" ? "ประหยัด" : quality === "balanced" ? "สมดุล" : "สูง"}
+              </button>
+            ))}
+          </div>
+        </section>
+        <section className="panel-section preference-list">
+          <label className="preference-row">
+            <span><strong>ลดการเคลื่อนไหว</strong><small>ลดการเคลื่อนไหวตกแต่งในฉาก</small></span>
+            <input
+              type="checkbox"
+              checked={preferences.reducedMotion}
+              onChange={(event) => setPreferences((current) => ({ ...current, reducedMotion: event.target.checked }))}
+            />
+          </label>
+        </section>
+        <section className="panel-section">
+          <h4>ข้อมูลและความเป็นส่วนตัว</h4>
+          <p className="subtle-note">ตัวละคร คำอธิษฐาน แบบกระทง และภาพถ่ายในรุ่นเริ่มต้นจะบันทึกในเบราว์เซอร์ของคุณ จนกว่าจะเชื่อมต่อบัญชีและฐานข้อมูล Supabase</p>
+          <button
+            className="danger-button full-button"
+            type="button"
+            onClick={() => {
+              const confirmed = window.confirm("ต้องการลบข้อมูลตัวละคร กระทง คำอธิษฐาน และการตั้งค่าที่บันทึกในอุปกรณ์นี้หรือไม่?");
+              if (!confirmed) return;
+              window.localStorage.removeItem("lkfw:avatar:v1");
+              window.localStorage.removeItem("lkfw:krathong:v1");
+              window.localStorage.removeItem("lkfw:preferences:v1");
+              window.localStorage.removeItem("lkfw:wishes:v1");
+              window.localStorage.removeItem("lkfw:designs");
+              setAvatar(DEFAULT_AVATAR);
+              setKrathong(DEFAULT_KRATHONG);
+              setPreferences(DEFAULT_PREFERENCES);
+              setWishes([]);
+              setSavedDesigns([]);
+              setNotice("ล้างข้อมูลในเบราว์เซอร์แล้ว");
+            }}
+          >
+            ล้างข้อมูลในอุปกรณ์นี้
+          </button>
+        </section>
+        <section className="panel-section version-card">
+          <span>LOY KRATHONG FANTASY WORLD</span>
+          <strong>รุ่นเริ่มต้น 0.1.0</strong>
+          <small>โลกสามมิติและเครื่องมือสร้างสรรค์</small>
+        </section>
+      </div>
+    );
+  };
+
+  return (
+    <main className="festival-app">
+      <header className="topbar">
+        <div className="brand-lockup">
+          <div className="brand-mark">LK</div>
+          <div className="brand-copy">
+            <strong>LOY KRATHONG</strong>
+            <span>FANTASY WORLD</span>
+          </div>
+        </div>
+        <div className="topbar-center">
+          <span className="live-dot" />
+          <span>โลกเทศกาลพร้อมให้สำรวจ</span>
+          <span className="topbar-divider" />
+          <span className="mode-label">โหมดตัวอย่าง</span>
+        </div>
+        <div className="topbar-actions">
+          <button className="topbar-button" type="button" onClick={() => setCameraAngle((angle) => angle - 0.3)} aria-label="หมุนมุมกล้องซ้าย">หมุนซ้าย</button>
+          <button className="topbar-button" type="button" onClick={() => setCameraAngle((angle) => angle + 0.3)} aria-label="หมุนมุมกล้องขวา">หมุนขวา</button>
+          <button className="capture-button" type="button" onClick={captureScene} disabled={isCapturing}>
+            {isCapturing ? "กำลังถ่าย..." : "ถ่ายภาพ"}
+          </button>
+        </div>
+      </header>
+
+      <div className="workspace">
+        <aside className="sidebar">
+          <div className="sidebar-heading">เมนูหลัก</div>
+          <nav className="main-navigation" aria-label="เมนูหลัก">
+            {NAV_ITEMS.map((item, index) => (
+              <button
+                type="button"
+                key={item.id}
+                className={`nav-item ${activePanel === item.id ? "is-active" : ""}`}
+                onClick={() => changePanel(item.id)}
+                aria-current={activePanel === item.id ? "page" : undefined}
+              >
+                <span className="nav-number">{String(index + 1).padStart(2, "0")}</span>
+                <span className="nav-copy"><strong>{item.title}</strong><small>{item.subtitle}</small></span>
+                <span className="nav-chevron">›</span>
+              </button>
+            ))}
+          </nav>
+          <div className="sidebar-footer">
+            <span className="sidebar-footer-rule" />
+            <strong>ค่ำคืนแห่งแสง</strong>
+            <small>พื้นที่สร้างความทรงจำร่วมกัน</small>
+          </div>
+        </aside>
+
+        <section className="world-stage" aria-label="โลกเทศกาลสามมิติ">
+          <div className="scene-canvas">
+            <WorldCanvasLoader
+              avatar={avatar}
+              krathong={krathong}
+              moveDirection={moveDirection}
+              cameraAngle={cameraAngle}
+              hasFloated={hasFloated}
+              reducedMotion={preferences.reducedMotion}
+              graphicsQuality={preferences.graphicsQuality}
+            />
+          </div>
+          <div className="scene-vignette" />
+          <div className="scene-heading">
+            <div className="scene-location-tag"><span /> ริมแม่น้ำจันทร์</div>
+            <h1>คืนแห่งแสง</h1>
+            <p>ร่วมเดินทางไปกับความปรารถนาดีใต้แสงจันทร์</p>
+          </div>
+          <div className="scene-bottom">
+            <div className="movement-control" aria-label="ปุ่มควบคุมการเดิน">
+              <button type="button" className="move-up" aria-label="เดินไปข้างหน้า" onPointerDown={() => setMoveDirection({ x: 0, z: -1 })} onPointerUp={() => setMoveDirection({ x: 0, z: 0 })} onPointerLeave={() => setMoveDirection({ x: 0, z: 0 })} onPointerCancel={() => setMoveDirection({ x: 0, z: 0 })}>↑</button>
+              <button type="button" className="move-left" aria-label="เดินไปทางซ้าย" onPointerDown={() => setMoveDirection({ x: -1, z: 0 })} onPointerUp={() => setMoveDirection({ x: 0, z: 0 })} onPointerLeave={() => setMoveDirection({ x: 0, z: 0 })} onPointerCancel={() => setMoveDirection({ x: 0, z: 0 })}>←</button>
+              <button type="button" className="move-down" aria-label="เดินถอยหลัง" onPointerDown={() => setMoveDirection({ x: 0, z: 1 })} onPointerUp={() => setMoveDirection({ x: 0, z: 0 })} onPointerLeave={() => setMoveDirection({ x: 0, z: 0 })} onPointerCancel={() => setMoveDirection({ x: 0, z: 0 })}>↓</button>
+              <button type="button" className="move-right" aria-label="เดินไปทางขวา" onPointerDown={() => setMoveDirection({ x: 1, z: 0 })} onPointerUp={() => setMoveDirection({ x: 0, z: 0 })} onPointerLeave={() => setMoveDirection({ x: 0, z: 0 })} onPointerCancel={() => setMoveDirection({ x: 0, z: 0 })}>→</button>
+            </div>
+            <div className="scene-action-stack">
+              <button type="button" className="scene-action secondary" onClick={() => changePanel("krathong")}>ออกแบบกระทง</button>
+              <button type="button" className="scene-action primary" onClick={() => changePanel("ceremony")}>เริ่มพิธีลอยกระทง</button>
+            </div>
+          </div>
+          <div className="scene-caption">ใช้ W A S D หรือปุ่มควบคุมเพื่อเคลื่อนที่</div>
+        </section>
+
+        <aside className="detail-panel">
+          <div className="detail-panel-header">
+            <div>
+              <span className="eyebrow">FESTIVAL MENU</span>
+              <h2>{PANEL_TITLES[activePanel]}</h2>
+            </div>
+            <span className="panel-step">{String(NAV_ITEMS.findIndex((item) => item.id === activePanel) + 1).padStart(2, "0")}/07</span>
+          </div>
+          <div className="detail-panel-content">{panelContent()}</div>
+          <div className="detail-panel-footer">
+            <span className="footer-status-dot" />
+            <span>ข้อมูลบันทึกในอุปกรณ์นี้</span>
+          </div>
+        </aside>
+      </div>
+
+      {notice && <div className="notice-toast" role="status" aria-live="polite">{notice}</div>}
+    </main>
+  );
+}
