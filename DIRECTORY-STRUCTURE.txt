@@ -1,0 +1,21 @@
+loy-krathong-fantasy-world/
+├── docs/                         # Product, UX, data, security and delivery docs
+├── public/
+│   ├── audio/{ambience,music,sound-effects}/
+│   ├── fonts/  icons/
+│   ├── images/{backgrounds,decorations,thumbnails}/
+│   ├── models/{avatars,characters,environments,krathongs,temples}/
+│   └── textures/{buildings,flowers,materials,water}/
+├── src/
+│   ├── app/                       # Next.js routes for each user-facing menu
+│   ├── components/{3d,forms,layout,modals,navigation,ui}/
+│   ├── features/{avatar,camera,friends,gallery,inventory,krathong,
+│   │              multiplayer,missions,wishes}/
+│   ├── hooks/  stores/  styles/  types/
+│   ├── lib/{constants,storage,supabase,utils,validation}/
+│   └── scenes/{floating-market,golden-temple,lotus-garden,main-world,
+│                moon-bridge,shared,starry-sky}/
+├── supabase/{migrations,seed}/
+└── tests/{e2e,unit}/
+
+Folders are seeded with .gitkeep files so Git tracks the initial layout.
