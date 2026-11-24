@@ -166,11 +166,11 @@ export default function FestivalExperience() {
   const [isCapturing, setIsCapturing] = useState(false);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
   const [roomLink, setRoomLink] = useState("");
+  const [currentUser, setCurrentUser] = useState<{ id: string; email: string | null } | null>(null);
   const currentUserId = currentUser?.id ?? null;
   const [uploadingPhotoId, setUploadingPhotoId] = useState<string | null>(null);
   const [uploadedPhotoIds, setUploadedPhotoIds] = useState<string[]>([]);
   const cloudAvatarLoadedForRef = useRef<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<{ id: string; email: string | null } | null>(null);
   const [pendingInvite, setPendingInvite] = useState("");
   const [onlineRoomId, setOnlineRoomId] = useState<string | null>(null);
   const [remotePlayers, setRemotePlayers] = useState<RemotePlayer[]>([]);
