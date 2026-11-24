@@ -7,6 +7,13 @@ import AccountControl from "@/components/account-control";
 import type { RemotePlayer, RoomPresenceConnection } from "@/lib/supabase/room-presence";
 import { subscribeToRoomPresence } from "@/lib/supabase/room-presence";
 import {
+  loadCloudAvatar,
+  saveCloudAvatar,
+  saveCloudKrathong,
+  saveCloudWish,
+  uploadPhotoToCloud
+} from "@/lib/supabase/user-data";
+import {
   createOnlineInvitation,
   createOnlineRoom,
   joinOnlineRoomByInvite,
@@ -158,6 +165,9 @@ export default function FestivalExperience() {
   const [isCapturing, setIsCapturing] = useState(false);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
   const [roomLink, setRoomLink] = useState("");
+  const [uploadingPhotoId, setUploadingPhotoId] = useState<string | null>(null);
+  const [uploadedPhotoIds, setUploadedPhotoIds] = useState<string[]>([]);
+  const cloudAvatarLoadedForRef = useRef<string | null>(null);
   const [currentUser, setCurrentUser] = useState<{ id: string; email: string | null } | null>(null);
   const [pendingInvite, setPendingInvite] = useState("");
   const [onlineRoomId, setOnlineRoomId] = useState<string | null>(null);
@@ -197,6 +207,41 @@ export default function FestivalExperience() {
     if (!isReady) return;
     saveAvatar(avatar);
   }, [avatar, isReady]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      cloudAvatarLoadedForRef.current = null;
+      return;
+    }
+    if (cloudAvatarLoadedForRef.current === currentUser.id) return;
+
+    let cancelled = false;
+    loadCloudAvatar()
+      .then((cloudAvatar) => {
+        if (cancelled) return;
+        if (cloudAvatar) setAvatar(cloudAvatar);
+        cloudAvatarLoadedForRef.current = currentUser.id;
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        cloudAvatarLoadedForRef.current = currentUser.id;
+        setNotice(error instanceof Error ? error.message : "ไม่สามารถโหลดตัวละครจากฐานข้อมูลได้");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (!isReady || !currentUser || cloudAvatarLoadedForRef.current !== currentUser.id) return;
+    const timer = window.setTimeout(() => {
+      saveCloudAvatar(avatar).catch((error: unknown) => {
+        setNotice(error instanceof Error ? error.message : "บันทึกตัวละครออนไลน์ไม่สำเร็จ");
+      });
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [avatar, currentUser?.id, isReady]);
 
   useEffect(() => {
     if (!isReady) return;
@@ -322,14 +367,26 @@ export default function FestivalExperience() {
     setKrathong((current) => ({ ...current, [key]: value }));
   };
 
-  const saveCurrentDesign = () => {
+  const saveCurrentDesign = async () => {
     const nextDesigns = [
       krathong,
       ...savedDesigns.filter((item) => item.designName !== krathong.designName)
     ].slice(0, 12);
     setSavedDesigns(nextDesigns);
     writeLocalValue("designs", nextDesigns);
-    setNotice("บันทึกแบบกระทงไว้ในอุปกรณ์นี้แล้ว");
+
+    if (!currentUser) {
+      setNotice("บันทึกแบบกระทงไว้ในอุปกรณ์นี้แล้ว เข้าสู่ระบบเพื่อสำรองไว้บนคลาวด์");
+      return;
+    }
+    try {
+      await saveCloudKrathong(krathong);
+      setNotice("บันทึกแบบกระทงในอุปกรณ์และบัญชีออนไลน์แล้ว");
+    } catch (error) {
+      setNotice(error instanceof Error
+        ? `บันทึกในอุปกรณ์แล้ว แต่สำรองออนไลน์ไม่สำเร็จ: ${error.message}`
+        : "บันทึกในอุปกรณ์แล้ว แต่สำรองออนไลน์ไม่สำเร็จ");
+    }
   };
 
   const createInvite = async () => {
@@ -396,7 +453,7 @@ export default function FestivalExperience() {
     }
   };
 
-  const createWishAndFloat = () => {
+  const createWishAndFloat = async () => {
     const body = newWish.trim();
     if (!body) {
       setNotice("กรุณาเขียนคำอธิษฐานก่อนเริ่มพิธี");
@@ -416,7 +473,21 @@ export default function FestivalExperience() {
     setWishes((current) => [wish, ...current].slice(0, 50));
     setNewWish("");
     setHasFloated(true);
-    setNotice("บันทึกคำอธิษฐานและเพิ่มกระทงลงในฉากแล้ว");
+
+    if (!currentUser) {
+      setNotice("บันทึกคำอธิษฐานในอุปกรณ์และเพิ่มกระทงลงในฉากแล้ว");
+      return;
+    }
+    try {
+      await saveCloudWish(wish);
+      setNotice(wish.visibility === "public"
+        ? "บันทึกคำอธิษฐานออนไลน์แล้ว และส่งเข้าคิวตรวจสอบก่อนแสดงสาธารณะ"
+        : "บันทึกคำอธิษฐานส่วนตัวออนไลน์แล้ว");
+    } catch (error) {
+      setNotice(error instanceof Error
+        ? `บันทึกในอุปกรณ์แล้ว แต่บันทึกออนไลน์ไม่สำเร็จ: ${error.message}`
+        : "บันทึกในอุปกรณ์แล้ว แต่บันทึกออนไลน์ไม่สำเร็จ");
+    }
   };
 
   const captureScene = () => {
@@ -444,6 +515,23 @@ export default function FestivalExperience() {
       "image/jpeg",
       0.9
     );
+  };
+
+  const uploadPhoto = async (photo: FestivalPhoto) => {
+    if (!currentUser) {
+      setNotice("กรุณาเข้าสู่ระบบก่อนสำรองภาพออนไลน์");
+      return;
+    }
+    setUploadingPhotoId(photo.id);
+    try {
+      await uploadPhotoToCloud(photo.blob);
+      setUploadedPhotoIds((current) => [...current, photo.id]);
+      setNotice("อัปโหลดภาพไปยังพื้นที่ส่วนตัวของบัญชีแล้ว");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "อัปโหลดภาพไม่สำเร็จ");
+    } finally {
+      setUploadingPhotoId(null);
+    }
   };
 
   const removePhoto = async (id: string) => {
@@ -751,6 +839,14 @@ export default function FestivalExperience() {
                   {photoUrls[photo.id] && <img src={photoUrls[photo.id]} alt="ภาพจากโลกเทศกาลลอยกระทง" />}
                   <div className="photo-card-footer">
                     <span>{new Date(photo.createdAt).toLocaleDateString("th-TH")}</span>
+                    <button
+                      type="button"
+                      onClick={() => uploadPhoto(photo)}
+                      disabled={!currentUser || uploadedPhotoIds.includes(photo.id) || uploadingPhotoId === photo.id}
+                      aria-label="สำรองภาพไปยังบัญชีออนไลน์"
+                    >
+                      {uploadedPhotoIds.includes(photo.id) ? "สำรองแล้ว" : uploadingPhotoId === photo.id ? "กำลังส่ง..." : "สำรองออนไลน์"}
+                    </button>
                     <button type="button" onClick={() => removePhoto(photo.id)} aria-label="ลบภาพนี้">ลบ</button>
                   </div>
                 </article>
