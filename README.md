@@ -16,13 +16,14 @@ npm run dev
 
 ## เชื่อมต่อ Supabase
 
-1. สร้าง Supabase project
-2. นำ Project URL และ Publishable Key ใส่ใน `.env.local`
-3. รันไฟล์ SQL ตามลำดับใน Supabase SQL Editor:
-   - `supabase/migrations/202611240001_initial_schema.sql`
-   - `supabase/migrations/202611240002_social_storage_rooms.sql`
-4. เพิ่ม Redirect URL `http://localhost:3000/auth/callback` ใน Supabase Authentication
-5. ตั้งค่า Email provider แล้วทดลองเข้าสู่ระบบด้วย Magic Link
+โปรเจกต์นี้เชื่อมกับ Supabase Project `loy-krathong-fantasy-world` แล้ว (Region: Sydney, Project Ref: `czvlqmozvjpfdiwsztdx`)
+
+1. คัดลอก `.env.example` เป็น `.env.local` แล้วตรวจค่า Project URL และ Publishable Key
+2. เพิ่ม Redirect URL `http://localhost:3000/auth/callback` ใน Supabase Authentication > URL Configuration
+3. ตั้งค่า Site URL และ Email provider ให้ตรงกับโดเมนที่ใช้งานจริง แล้วทดสอบ Magic Link
+4. Migration ทั้งสามชุดถูกติดตั้งในฐานข้อมูลของโปรเจกต์ที่เชื่อมอยู่แล้ว หากสร้างฐานข้อมูลใหม่ ให้รันไฟล์ใน `supabase/migrations/` ตามลำดับ 001, 002 และ 003
+
+Publishable Key ถูกออกแบบให้ใช้ในแอปฝั่ง client ได้ โดยยังต้องใช้ RLS ควบคุมการเข้าถึงข้อมูล ห้ามนำ Service Role Key หรือ Secret Key มาใส่ใน `NEXT_PUBLIC_*` หรือ commit ลง GitHub
 
 ## ฟังก์ชันที่มีในรุ่นเริ่มต้น
 
