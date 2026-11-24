@@ -145,11 +145,19 @@ function Tree({ position, scale = 1 }: { position: [number, number, number]; sca
   );
 }
 
-function Lantern({ position, index }: { position: [number, number, number]; index: number }) {
+function Lantern({
+  position,
+  index,
+  reducedMotion
+}: {
+  position: [number, number, number];
+  index: number;
+  reducedMotion: boolean;
+}) {
   const lanternRef = useRef<THREE.Group>(null);
 
   useFrame(({ clock }) => {
-    if (!lanternRef.current) return;
+    if (reducedMotion || !lanternRef.current) return;
     const phase = clock.elapsedTime * 0.6 + index * 1.2;
     lanternRef.current.position.y = position[1] + Math.sin(phase) * 0.12;
     lanternRef.current.rotation.z = Math.sin(phase * 0.6) * 0.05;
@@ -568,19 +576,19 @@ function WorldScene({
         </mesh>
       ))}
 
-      <Lantern position={[-4.8, 4.2, -2.5]} index={0} />
-      <Lantern position={[-3.4, 5.1, -8.5]} index={1} />
-      <Lantern position={[3.3, 4.7, -8.0]} index={2} />
-      <Lantern position={[4.8, 3.8, -2.2]} index={3} />
-      <Lantern position={[-2.9, 3.6, 2.0]} index={4} />
-      <Lantern position={[3.0, 4.4, 1.8]} index={5} />
+      <Lantern position={[-4.8, 4.2, -2.5]} index={0} reducedMotion={reducedMotion} />
+      <Lantern position={[-3.4, 5.1, -8.5]} index={1} reducedMotion={reducedMotion} />
+      <Lantern position={[3.3, 4.7, -8.0]} index={2} reducedMotion={reducedMotion} />
+      <Lantern position={[4.8, 3.8, -2.2]} index={3} reducedMotion={reducedMotion} />
+      <Lantern position={[-2.9, 3.6, 2.0]} index={4} reducedMotion={reducedMotion} />
+      <Lantern position={[3.0, 4.4, 1.8]} index={5} reducedMotion={reducedMotion} />
 
       <Lotus position={[-3.1, -0.12, 1.2]} />
       <Lotus position={[3.2, -0.12, 1.8]} color="#e8c17d" />
       <Lotus position={[-4.4, -0.12, -3.0]} color="#d6a1b8" />
-      <KrathongModel settings={krathong} position={[1.25, -0.08, 3.7]} scale={0.82} />
+      <KrathongModel settings={krathong} position={[1.25, -0.08, 3.7]} scale={0.82} animated={!reducedMotion} />
       {hasFloated && (
-        <KrathongModel settings={krathong} position={[-1.2, -0.08, 4.3]} scale={0.94} />
+        <KrathongModel settings={krathong} position={[-1.2, -0.08, 4.3]} scale={0.94} animated={!reducedMotion} />
       )}
 
       <mesh position={[0, 7.8, -18]} rotation={[0.1, 0, 0]}>
