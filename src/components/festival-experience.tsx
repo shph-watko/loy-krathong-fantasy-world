@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import type { CSSProperties } from "react";
 import WorldCanvasLoader from "@/components/world-canvas-loader";
 import AccountControl from "@/components/account-control";
@@ -165,6 +166,7 @@ export default function FestivalExperience() {
   const [isCapturing, setIsCapturing] = useState(false);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
   const [roomLink, setRoomLink] = useState("");
+  const currentUserId = currentUser?.id ?? null;
   const [uploadingPhotoId, setUploadingPhotoId] = useState<string | null>(null);
   const [uploadedPhotoIds, setUploadedPhotoIds] = useState<string[]>([]);
   const cloudAvatarLoadedForRef = useRef<string | null>(null);
@@ -183,24 +185,38 @@ export default function FestivalExperience() {
   }, []);
 
   useEffect(() => {
-    setAvatar(readLocalValue("avatar", DEFAULT_AVATAR));
-    setKrathong(readLocalValue("krathong", DEFAULT_KRATHONG));
-    setPreferences(readLocalValue("preferences", DEFAULT_PREFERENCES));
-    setWishes(readLocalValue("wishes", [] as FestivalWish[]));
-    setSavedDesigns(readLocalValue("designs", [] as KrathongSettings[]));
-    setIsReady(true);
+    let cancelled = false;
+    const localAvatar = readLocalValue("avatar", DEFAULT_AVATAR);
+    const localKrathong = readLocalValue("krathong", DEFAULT_KRATHONG);
+    const localPreferences = readLocalValue("preferences", DEFAULT_PREFERENCES);
+    const localWishes = readLocalValue("wishes", [] as FestivalWish[]);
+    const localDesigns = readLocalValue("designs", [] as KrathongSettings[]);
 
     const parameters = new URLSearchParams(window.location.search);
     const incomingCode = parameters.get("room");
     const incomingInvite = parameters.get("invite");
-    if (incomingCode) {
-      setJoinCode(incomingCode.toUpperCase().slice(0, 6));
-      setActivePanel("friends");
-    }
-    if (incomingInvite) {
-      setPendingInvite(incomingInvite);
-      setActivePanel("friends");
-    }
+
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setAvatar(localAvatar);
+      setKrathong(localKrathong);
+      setPreferences(localPreferences);
+      setWishes(localWishes);
+      setSavedDesigns(localDesigns);
+      if (incomingCode) {
+        setJoinCode(incomingCode.toUpperCase().slice(0, 6));
+        setActivePanel("friends");
+      }
+      if (incomingInvite) {
+        setPendingInvite(incomingInvite);
+        setActivePanel("friends");
+      }
+      setIsReady(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -209,39 +225,39 @@ export default function FestivalExperience() {
   }, [avatar, isReady]);
 
   useEffect(() => {
-    if (!currentUser) {
+    if (!currentUserId) {
       cloudAvatarLoadedForRef.current = null;
       return;
     }
-    if (cloudAvatarLoadedForRef.current === currentUser.id) return;
+    if (cloudAvatarLoadedForRef.current === currentUserId) return;
 
     let cancelled = false;
     loadCloudAvatar()
       .then((cloudAvatar) => {
         if (cancelled) return;
         if (cloudAvatar) setAvatar(cloudAvatar);
-        cloudAvatarLoadedForRef.current = currentUser.id;
+        cloudAvatarLoadedForRef.current = currentUserId;
       })
       .catch((error: unknown) => {
         if (cancelled) return;
-        cloudAvatarLoadedForRef.current = currentUser.id;
+        cloudAvatarLoadedForRef.current = currentUserId;
         setNotice(error instanceof Error ? error.message : "ไม่สามารถโหลดตัวละครจากฐานข้อมูลได้");
       });
 
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.id]);
+  }, [currentUserId]);
 
   useEffect(() => {
-    if (!isReady || !currentUser || cloudAvatarLoadedForRef.current !== currentUser.id) return;
+    if (!isReady || !currentUserId || cloudAvatarLoadedForRef.current !== currentUserId) return;
     const timer = window.setTimeout(() => {
       saveCloudAvatar(avatar).catch((error: unknown) => {
         setNotice(error instanceof Error ? error.message : "บันทึกตัวละครออนไลน์ไม่สำเร็จ");
       });
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [avatar, currentUser?.id, isReady]);
+  }, [avatar, currentUserId, isReady]);
 
   useEffect(() => {
     if (!isReady) return;
@@ -288,7 +304,6 @@ export default function FestivalExperience() {
     if (!onlineRoomId || !currentUser) {
       presenceConnectionRef.current?.close();
       presenceConnectionRef.current = null;
-      setRemotePlayers([]);
       return;
     }
 
@@ -338,9 +353,10 @@ export default function FestivalExperience() {
     photos.forEach((photo) => {
       nextUrls[photo.id] = URL.createObjectURL(photo.blob);
     });
-    setPhotoUrls(nextUrls);
+    const frame = window.requestAnimationFrame(() => setPhotoUrls(nextUrls));
 
     return () => {
+      window.cancelAnimationFrame(frame);
       Object.values(nextUrls).forEach((url) => URL.revokeObjectURL(url));
     };
   }, [photos]);
@@ -355,6 +371,8 @@ export default function FestivalExperience() {
     () => `${photos.length} ภาพที่บันทึกในอุปกรณ์นี้`,
     [photos.length]
   );
+
+  const visibleRemotePlayers = onlineRoomId && currentUser ? remotePlayers : [];
 
   const updateAvatar = <K extends keyof AvatarSettings>(key: K, value: AvatarSettings[K]) => {
     setAvatar((current) => ({ ...current, [key]: value }));
@@ -797,9 +815,9 @@ export default function FestivalExperience() {
           </section>
           {onlineRoomId && (
             <section className="panel-section room-presence-card">
-              <div className="section-heading"><h4>สมาชิกในห้อง</h4><span>{remotePlayers.length + 1} คน</span></div>
+              <div className="section-heading"><h4>สมาชิกในห้อง</h4><span>{visibleRemotePlayers.length + 1} คน</span></div>
               <div className="room-member-row"><span className="member-presence-dot" /><strong>{avatar.displayName}</strong><small>คุณ</small></div>
-              {remotePlayers.map((player) => (
+              {visibleRemotePlayers.map((player) => (
                 <div className="room-member-row" key={player.userId}>
                   <span className="member-presence-dot" /><strong>{player.displayName}</strong><small>ออนไลน์</small>
                 </div>
@@ -836,7 +854,7 @@ export default function FestivalExperience() {
             <div className="photo-grid">
               {photos.map((photo) => (
                 <article className="photo-card" key={photo.id}>
-                  {photoUrls[photo.id] && <img src={photoUrls[photo.id]} alt="ภาพจากโลกเทศกาลลอยกระทง" />}
+                  {photoUrls[photo.id] && <Image src={photoUrls[photo.id]} alt="ภาพจากโลกเทศกาลลอยกระทง" width={480} height={360} unoptimized />}
                   <div className="photo-card-footer">
                     <span>{new Date(photo.createdAt).toLocaleDateString("th-TH")}</span>
                     <button
@@ -980,7 +998,7 @@ export default function FestivalExperience() {
               hasFloated={hasFloated}
               reducedMotion={preferences.reducedMotion}
               graphicsQuality={preferences.graphicsQuality}
-              remotePlayers={remotePlayers}
+              remotePlayers={visibleRemotePlayers}
               onPositionChange={publishPosition}
             />
           </div>
